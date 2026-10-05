@@ -1,0 +1,30 @@
+# Documents in the agent's searchable library. `kind` says how much weight a passage carries:
+#   law             binding (applicable rules and commencement still need checking before use)
+#   recommendation  advice from a regulator, not binding
+#   guidance        policy principles, not binding
+#   operator        this operator's own policy: the rule-checker enforces it
+- id: telecom-act-2023
+  title: The Telecommunications Act, 2023 (No. 44 of 2023)
+  publisher: Government of India
+  kind: law
+  url: https://egazette.gov.in/WriteReadData/2023/250880.pdf
+- id: dpdp-act-2023
+  title: The Digital Personal Data Protection Act, 2023
+  publisher: Government of India (MeitY)
+  kind: law
+  url: https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf
+- id: trai-ai-2023
+  title: TRAI Recommendations on Leveraging Artificial Intelligence and Big Data in the Telecommunication Sector (2023)
+  publisher: Telecom Regulatory Authority of India
+  kind: recommendation
+  url: https://www.trai.gov.in/sites/default/files/2024-09/Recommendation_20072023.pdf
+- id: niti-rai-2021
+  title: "Responsible AI for All, Part 1: Principles for Responsible AI (2021)"
+  publisher: NITI Aayog
+  kind: guidance
+  url: https://www.niti.gov.in/sites/default/files/2021-02/Responsible-AI-22022021.pdf
+- id: operator-policy
+  title: Operator policy for the self-healing agent
+  publisher: Operator (this project)
+  kind: operator
+  files: [config/policy.yaml, config/intents.yaml]

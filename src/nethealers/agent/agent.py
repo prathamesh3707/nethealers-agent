@@ -98,7 +98,8 @@ class Incident:
 
 class Agent:
     def __init__(self, world: World, *, diagnoser=None, policy: Policy | None = None, mode: str = "twin",
-                 operator: Callable | None = None, log: EventLog | None = None, name: str = "agent"):
+                 operator: Callable | None = None, log: EventLog | None = None, name: str = "agent",
+                 roles=None):
         """mode: "twin" rehearses every fix first; "no_twin" acts on a fixed preference order and only checks after."""
         self.world = world
         self.diagnoser = diagnoser
@@ -107,6 +108,7 @@ class Agent:
         self.operator = operator
         self.log = log or EventLog()
         self.name = name
+        self.roles = roles  # language-model planner and safety adviser (agent/roles.py); None = plain rules
         self.monitor = Monitor()
         self.rules = RuleChecker(self.policy, world)
         self.trust = TwinTrust()
@@ -301,7 +303,7 @@ class Agent:
         else:
             preds = [Prediction(a, describe(w, a), float("nan"), 0.0, float("nan"), 0, 0.0) for a in acts]
 
-        chosen, rejected_shown = None, 0
+        viable, rejected_shown = [], 0
         for p in preds:
             v = self.rules.check(p.action, w, w.tick, pred=p if self.mode == "twin" else None,
                                  confidence=inc.confidence if self.diagnoser else 1.0,
@@ -312,8 +314,12 @@ class Agent:
                               {"action": p.text, "reasons": v.reasons})
                     rejected_shown += 1
                 continue
-            chosen = (p, v)
-            break
+            viable.append((p, v))
+            if len(viable) == (4 if self.roles is not None else 1):
+                break
+        chosen = self._choose(inc, viable) if viable else None
+        if chosen == "escalated":
+            return None
         if chosen is None:
             if inc.kept:
                 inc.status, inc.partial_escalated = "fixed", True
@@ -330,6 +336,41 @@ class Agent:
             inc.status, inc.pending, inc.waiting_since = "waiting_human", (p, v), w.tick
             self._say("escalate", "safety", f"Asking a person to approve: {p.text}, because "
                                             f"{'; '.join(v.reasons)}.", inc, {"action": p.text, "reasons": v.reasons})
+
+    def _choose(self, inc: Incident, viable: list):
+        """Planner picks among safe options; the safety adviser may object once. Plain rules: take the first."""
+        if self.roles is None:
+            return viable[0]
+        from .roles import option_view
+
+        w = self.world
+        summary = {"where": inc.place, "phones_affected": len(inc.focus or inc.phones), "cause": inc.cause,
+                   "diagnosis_confidence": round(inc.confidence, 2), "evidence": self._evidence(inc)}
+        objection = None
+        for _round in range(2):
+            options = [option_view(i + 1, p, v, w.zones) for i, (p, v) in enumerate(viable)]
+            pick = self.roles.plan(summary, options, objection)
+            if not pick.ok:
+                self._escalate(inc, f"Planner: {pick.reason}")
+                return "escalated"
+            p, v = viable[pick.choice]
+            self._say("plan", "planner", f"Planner picked: {p.text}. {pick.reason}", inc,
+                      {"action": p.text, "source": pick.source, "options": options})
+            hits = self.roles.evidence(summary, options[pick.choice])
+            review = self.roles.review(summary, options[pick.choice], hits)
+            cites = f" (see {'; '.join(review.citations)})" if review.citations else ""
+            if review.ok:
+                self._say("review", "safety", f"Safety adviser agrees: {review.reason}{cites}", inc,
+                          {"source": review.source, "citations": review.citations})
+                return p, v
+            self._say("review", "safety", f"Safety adviser objects: {review.reason}{cites}", inc,
+                      {"source": review.source, "citations": review.citations})
+            objection = review.reason
+            viable = [x for i, x in enumerate(viable) if i != pick.choice]
+            if not viable:
+                break
+        self._escalate(inc, "The planner and safety adviser could not agree on a change.")
+        return "escalated"
 
     def _act(self, inc: Incident, p: Prediction) -> None:
         w = self.world

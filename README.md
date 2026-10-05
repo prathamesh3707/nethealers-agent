@@ -10,7 +10,7 @@ Simulation project for the ITU AI for Good Build-a-thon 5.0. An agent watches a 
 | 2 | Dataset and diagnosis model (with LWM) | Done |
 | 3a | Agent core: monitor, twin rehearsal, rule-checker, act, verify, undo, withdraw | Done |
 | 3b | Six test scenarios, five methods, evaluation report | Done |
-| 3c | Language-model roles, knowledge base, decision log in Postgres | Next |
+| 3c | Language-model roles, document library, decision log in Postgres | Done (live model test needs a key) |
 | 3d | Backend API for the game | Planned |
 | 4 | 3D game with live agent panel | Planned |
 
@@ -25,7 +25,12 @@ uv run python scripts/step1_demo.py # narrated demo, pictures in out/
 uv run python scripts/make_dataset.py    # ~12 min on half the cores: data/train.parquet, data/station_road.parquet
 uv run python scripts/train_diagnosis.py # ~1.5 min: models/diagnosis.joblib, out/diagnosis_report.md
 uv run python scripts/run_scenarios.py   # ~2 min: docs/evaluation_report.md, docs/eval_timeline.png
+docker compose up -d                     # Postgres + pgvector on port 5435 (decision log, library)
+uv run python scripts/build_library.py   # download the rule documents, build the searchable library
+uv run python scripts/demo_agent.py      # watch the agent handle the bus, step by step
 ```
+
+To switch on the language-model roles, copy `.env.example` to `.env` and add an OpenRouter key (free models). Without a key everything still runs on plain rules.
 
 The LWM weights (2.5 MB, MIT licence) download automatically into `models/lwm/` on first use.
 
@@ -114,6 +119,13 @@ Call `agent.on_tick()` after every `world.step()`. Each incident moves through: 
 | `rules.py` | Plain-code rule-checker with the final say: step sizes, drift from planned settings, legal power limits, cooldowns, predicted harm, protected zones (with a safety margin and a hold after any breach), and autonomy (act alone, small steps only, or ask a person). |
 | `agent.py` | The loop. Reads settings back after every change, so a tower that silently ignores commands is caught and escalated. Checks protected zones every tick after a move and undoes at once if one goes over. |
 | `config/policy.yaml` | The operator's policy. The agent can never loosen it. |
+
+## Language-model roles, library and decision log
+
+- **Planner and safety adviser** (`agent/roles.py`). After the twin and the rule-checker have narrowed things down to safe options, the planner picks one and explains why in plain words, following the operator's intents (`config/intents.yaml`). The safety adviser reviews it with passages from the document library and may object once; the planner then picks again, and a second objection goes to a person. Neither can invent a fix, change a number or loosen a rule: an answer that isn't one of the listed options is ignored.
+- **Fallback chain** (`llm/client.py`). Any OpenAI-compatible API: OpenRouter free models (with OpenRouter's own model fallback), then Groq, Gemini, a local Ollama model, then plain rules. Answers are cached on disk, so replaying a demo is free.
+- **Document library** (`kb/library.py`, `config/kb_sources.yaml`). The Telecommunications Act 2023, the DPDP Act 2023, TRAI's 2023 AI and big data recommendations, NITI Aayog's Responsible AI principles and the operator's own policy: 797 passages with page numbers, embedded locally (all-MiniLM-L6-v2) and stored in Postgres with pgvector (or a local file without Postgres). Passages are evidence to cite; they can't change permissions. This stands in for the ITU AI for Good Sandbox knowledge base until access is granted.
+- **Decision log** (`agent/events.py`). Every event goes to Postgres (`runs`, `events` tables) when the database is running.
 
 ## Evaluation (`src/nethealers/eval`, `docs/evaluation_report.md`)
 

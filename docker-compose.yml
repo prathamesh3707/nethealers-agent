@@ -1,0 +1,21 @@
+# Postgres with pgvector: decision log and the searchable document library.
+#   docker compose up -d      start
+#   docker compose down       stop (data is kept in the volume)
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: nethealers-db
+    environment:
+      POSTGRES_USER: nethealers
+      POSTGRES_PASSWORD: nethealers
+      POSTGRES_DB: nethealers
+    ports:
+      - "5435:5432"
+    volumes:
+      - nethealers-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nethealers"]
+      interval: 3s
+      retries: 20
+volumes:
+  nethealers-db:

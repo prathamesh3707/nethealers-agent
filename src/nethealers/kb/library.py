@@ -1,0 +1,263 @@
+"""The searchable document library: rules, recommendations and the operator's own policy.
+
+Documents are downloaded once, split into passages of about 900 characters
+(keeping their page numbers), turned into 384-number vectors by a small
+local embedding model (all-MiniLM-L6-v2, runs on the laptop's processor),
+and stored in Postgres with pgvector. Without Postgres, the same index is
+kept in a local file instead.
+
+Passages are evidence for the agents to quote. Nothing in a document can
+change what the agent is allowed to do: only config/policy.yaml does that,
+and only a person edits it.
+
+This stands in for the ITU AI for Good Sandbox knowledge base until access
+is granted; the chunk records (source, page, stable id) are kept simple so
+they can be re-ingested there with ITU's reference code.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+import yaml
+
+ROOT = Path(__file__).resolve().parents[3]
+RAW = ROOT / "data" / "kb" / "raw"
+LOCAL_INDEX = ROOT / "data" / "kb" / "index"
+SOURCES = ROOT / "config" / "kb_sources.yaml"
+EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+DIM = 384
+CHUNK_CHARS = 900
+OVERLAP = 150
+BROWSER_HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Safari/605.1.15",
+                   "Accept": "application/pdf,*/*"}
+
+
+@dataclass
+class Passage:
+    id: str
+    doc_id: str
+    title: str
+    kind: str
+    page: int
+    text: str
+
+
+@dataclass
+class Hit(Passage):
+    score: float = 0.0
+
+    def cite(self) -> str:
+        return f"{self.title}, p. {self.page}" if self.page else self.title
+
+
+# ---------------------------------------------------------------------- building
+
+def load_sources() -> list[dict]:
+    return yaml.safe_load(SOURCES.read_text())
+
+
+def fetch(src: dict) -> Path | None:
+    """Download a source PDF once (into data/kb/raw). Returns the local path."""
+    if "url" not in src:
+        return None
+    RAW.mkdir(parents=True, exist_ok=True)
+    path = RAW / f"{src['id']}.pdf"
+    if not path.exists():
+        try:
+            req = urllib.request.Request(src["url"], headers=BROWSER_HEADERS)
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = r.read()
+        except Exception:
+            # Some government sites send an incomplete certificate chain that Python rejects but the
+            # system's own trust store (used by curl) accepts.
+            import subprocess
+
+            data = subprocess.run(["curl", "-sL", "--max-time", "60", "-A", BROWSER_HEADERS["User-Agent"],
+                                   "-H", "Accept: application/pdf,*/*", src["url"]],
+                                  capture_output=True, check=True).stdout
+        if not data.startswith(b"%PDF"):
+            raise RuntimeError(f"{src['id']}: the server didn't return a PDF")
+        path.write_bytes(data)
+    return path
+
+
+def pages_of(src: dict) -> list[tuple[int, str, str]]:
+    """(page number, text, key) for a source: PDF pages, or whole local files (page 0, keyed by file name)."""
+    if "files" in src:
+        return [(0, (ROOT / f).read_text(), Path(f).stem) for f in src["files"]]
+    from pypdf import PdfReader
+
+    reader = PdfReader(str(fetch(src)))
+    out = []
+    for i, page in enumerate(reader.pages, start=1):
+        text = page.extract_text() or ""
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n{2,}", "\n\n", text).strip()
+        if len(text) > 40:
+            out.append((i, text, str(i)))
+    return out
+
+
+def split(text: str, size: int = CHUNK_CHARS, overlap: int = OVERLAP) -> list[str]:
+    """Split on paragraph and sentence boundaries into pieces of about `size` characters."""
+    parts = re.split(r"(?<=[.;:])\s+|\n\n", text)
+    chunks, cur = [], ""
+    for p in parts:
+        p = p.strip()
+        if not p:
+            continue
+        if len(cur) + len(p) + 1 > size and cur:
+            chunks.append(cur)
+            cur = cur[-overlap:] + " " + p
+        else:
+            cur = (cur + " " + p).strip()
+    if cur:
+        chunks.append(cur)
+    return chunks
+
+
+def passages_of(src: dict) -> list[Passage]:
+    out = []
+    for page, text, key in pages_of(src):
+        for n, chunk in enumerate(split(text)):
+            out.append(Passage(f"{src['id']}:{key}:{n}", src["id"], src["title"], src["kind"], page, chunk))
+    return out
+
+
+_EMBEDDER = None
+
+
+def embed(texts: list[str]) -> np.ndarray:
+    global _EMBEDDER
+    if _EMBEDDER is None:
+        from sentence_transformers import SentenceTransformer
+
+        _EMBEDDER = SentenceTransformer(EMBED_MODEL, device="cpu")
+    return np.asarray(_EMBEDDER.encode(texts, batch_size=32, normalize_embeddings=True, show_progress_bar=False),
+                      dtype=np.float32)
+
+
+# ---------------------------------------------------------------------- storage
+
+class MemoryStore:
+    """The index in a local file: used when Postgres isn't running."""
+
+    def __init__(self, path: Path = LOCAL_INDEX):
+        self.path = path
+        self.meta: list[dict] = []
+        self.vecs = np.zeros((0, DIM), dtype=np.float32)
+        if (path / "vectors.npy").exists():
+            self.vecs = np.load(path / "vectors.npy")
+            self.meta = json.loads((path / "passages.json").read_text())
+
+    name = "local file"
+
+    def replace_doc(self, doc_id: str, passages: list[Passage], vecs: np.ndarray) -> None:
+        keep = [i for i, m in enumerate(self.meta) if m["doc_id"] != doc_id]
+        self.meta = [self.meta[i] for i in keep] + [p.__dict__ for p in passages]
+        self.vecs = np.vstack([self.vecs[keep], vecs]) if len(keep) else vecs
+        self.path.mkdir(parents=True, exist_ok=True)
+        np.save(self.path / "vectors.npy", self.vecs)
+        (self.path / "passages.json").write_text(json.dumps(self.meta))
+
+    def search(self, vec: np.ndarray, k: int, kinds: list[str] | None) -> list[Hit]:
+        if not len(self.meta):
+            return []
+        scores = self.vecs @ vec
+        order = np.argsort(-scores)
+        out = []
+        for i in order:
+            m = self.meta[i]
+            if kinds and m["kind"] not in kinds:
+                continue
+            out.append(Hit(**m, score=float(scores[i])))
+            if len(out) == k:
+                break
+        return out
+
+    def count(self) -> int:
+        return len(self.meta)
+
+
+class PgStore:
+    """The index in Postgres with pgvector."""
+
+    name = "Postgres"
+
+    def __init__(self, url: str):
+        import psycopg
+        from pgvector.psycopg import register_vector
+
+        self.conn = psycopg.connect(url, autocommit=True, connect_timeout=3)
+        self.conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        register_vector(self.conn)
+        self.conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS kb_passages (
+                id text PRIMARY KEY, doc_id text NOT NULL, title text NOT NULL, kind text NOT NULL,
+                page int NOT NULL, text text NOT NULL, embedding vector({DIM}) NOT NULL)""")
+
+    def replace_doc(self, doc_id: str, passages: list[Passage], vecs: np.ndarray) -> None:
+        with self.conn.transaction():
+            self.conn.execute("DELETE FROM kb_passages WHERE doc_id = %s", (doc_id,))
+            with self.conn.cursor() as cur:
+                cur.executemany(
+                    "INSERT INTO kb_passages (id, doc_id, title, kind, page, text, embedding) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    [(p.id, p.doc_id, p.title, p.kind, p.page, p.text, v) for p, v in zip(passages, vecs)])
+
+    def search(self, vec: np.ndarray, k: int, kinds: list[str] | None) -> list[Hit]:
+        sql = "SELECT id, doc_id, title, kind, page, text, 1 - (embedding <=> %s) FROM kb_passages"
+        args: list = [vec]
+        if kinds:
+            sql += " WHERE kind = ANY(%s)"
+            args.append(kinds)
+        sql += " ORDER BY embedding <=> %s LIMIT %s"
+        args += [vec, k]
+        rows = self.conn.execute(sql, args).fetchall()
+        return [Hit(*r[:6], score=float(r[6])) for r in rows]
+
+    def count(self) -> int:
+        return self.conn.execute("SELECT count(*) FROM kb_passages").fetchone()[0]
+
+
+class Library:
+    """Search the documents: `Library.open().search("can the agent change tower power on its own?")`."""
+
+    def __init__(self, store):
+        self.store = store
+
+    @classmethod
+    def open(cls, prefer_postgres: bool = True) -> "Library":
+        url = os.environ.get("DATABASE_URL")
+        if prefer_postgres and url:
+            try:
+                return cls(PgStore(url))
+            except Exception:
+                pass
+        return cls(MemoryStore())
+
+    def build(self, sources: list[dict] | None = None, log=print) -> dict:
+        counts = {}
+        for src in sources or load_sources():
+            try:
+                passages = passages_of(src)
+            except Exception as e:
+                log(f"  skipped {src['id']}: {e}")
+                continue
+            vecs = embed([p.text for p in passages])
+            self.store.replace_doc(src["id"], passages, vecs)
+            counts[src["id"]] = len(passages)
+            log(f"  {src['id']}: {len(passages)} passages")
+        return counts
+
+    def search(self, query: str, k: int = 4, kinds: list[str] | None = None) -> list[Hit]:
+        if self.store.count() == 0:
+            return []
+        return self.store.search(embed([query])[0], k, kinds)
