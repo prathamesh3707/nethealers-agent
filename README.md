@@ -11,7 +11,7 @@ Simulation project for the ITU AI for Good Build-a-thon 5.0. An agent watches a 
 | 3a | Agent core: monitor, twin rehearsal, rule-checker, act, verify, undo, withdraw | Done |
 | 3b | Six test scenarios, five methods, evaluation report | Done |
 | 3c | Language-model roles, document library, decision log in Postgres | Done (live model test needs a key) |
-| 3d | Backend API for the game | Planned |
+| 3d | Backend API for the game (sessions, controls, live WebSocket) | Done |
 | 4 | 3D game with live agent panel | Planned |
 
 ## Setup
@@ -28,13 +28,14 @@ uv run python scripts/run_scenarios.py   # ~2 min: docs/evaluation_report.md, do
 docker compose up -d                     # Postgres + pgvector on port 5435 (decision log, library)
 uv run python scripts/build_library.py   # download the rule documents, build the searchable library
 uv run python scripts/demo_agent.py      # watch the agent handle the bus, step by step
+uv run python scripts/serve.py           # game backend on http://localhost:8010 (docs at /docs)
 ```
 
 To switch on the language-model roles, copy `.env.example` to `.env` and add an OpenRouter key (free models). Without a key everything still runs on plain rules.
 
 The LWM weights (2.5 MB, MIT licence) download automatically into `models/lwm/` on first use.
 
-If `import nethealers` fails on macOS, the editable-install `.pth` file may have been marked hidden (Python 3.12 skips hidden `.pth` files). Fix with `chflags nohidden .venv/lib/python3.12/site-packages/*.pth`, or prefix commands with `PYTHONPATH=src`.
+If `import nethealers` fails on macOS, the editable-install `.pth` file has been marked hidden (Python 3.12 skips hidden `.pth` files, and it can happen again after `uv sync`). Fix with `chflags nohidden .venv/lib/python3.12/site-packages/*.pth`. The scripts and tests add `src` to the path themselves, so they work either way.
 
 ## How the signal maths works (`src/nethealers/sim`)
 
@@ -126,6 +127,22 @@ Call `agent.on_tick()` after every `world.step()`. Each incident moves through: 
 - **Fallback chain** (`llm/client.py`). Any OpenAI-compatible API: OpenRouter free models (with OpenRouter's own model fallback), then Groq, Gemini, a local Ollama model, then plain rules. Answers are cached on disk, so replaying a demo is free.
 - **Document library** (`kb/library.py`, `config/kb_sources.yaml`). The Telecommunications Act 2023, the DPDP Act 2023, TRAI's 2023 AI and big data recommendations, NITI Aayog's Responsible AI principles and the operator's own policy: 797 passages with page numbers, embedded locally (all-MiniLM-L6-v2) and stored in Postgres with pgvector (or a local file without Postgres). Passages are evidence to cite; they can't change permissions. This stands in for the ITU AI for Good Sandbox knowledge base until access is granted.
 - **Decision log** (`agent/events.py`). Every event goes to Postgres (`runs`, `events` tables) when the database is running.
+
+## Game backend (`src/nethealers/api`)
+
+A session is one street with its clock running in the background (1 tick per second by default, up to 10), the agent, and the player as the operator who answers approval requests. Player actions go through a lock so they never land mid-tick; while the agent thinks, the street waits.
+
+| Endpoint | Does |
+|---|---|
+| `POST /sessions` | Start a game on Station Road (agent on, language model on if a key is set) |
+| `GET /sessions/{id}/scene` | Buildings, protected zones, beam angles: build the 3D view once |
+| `GET /sessions/{id}/state` | Phones (position, tower, beam direction, clarity band, data rate), towers, blockers, incidents, score |
+| `POST /sessions/{id}/problems` | Drop a bus, truck, car, crowd, kiosk, hoarding, stuck beam, misconfigured tower, booster or crowd surge |
+| `DELETE /sessions/{id}/problems/{pid}` | Remove it |
+| `POST /sessions/{id}/control` | Pause, resume, step one tick, set speed |
+| `POST /sessions/{id}/answer` | Approve or reject a fix the agent asked about |
+| `GET /sessions/{id}/events` | The agent's full log |
+| `WS /sessions/{id}/live` | One frame per tick with that tick's events: what the side panel shows |
 
 ## Evaluation (`src/nethealers/eval`, `docs/evaluation_report.md`)
 
