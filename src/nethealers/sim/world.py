@@ -153,6 +153,8 @@ class StepResult:
     airtime: np.ndarray  # (U,) share of its tower's time each phone gets
     load: np.ndarray  # (T,) airtime the tower's phones need; above 1 means overloaded
     interference_mw: np.ndarray  # (U,) interference per resource element
+    serving: np.ndarray  # (U,) serving tower per phone
+    beam: np.ndarray  # (U,) beam in use per phone
 
 
 def spectral_efficiency(sinr_db: np.ndarray, radio: RadioConfig) -> np.ndarray:
@@ -388,7 +390,8 @@ class World:
         self._beam_weights = np.where(totals > 0, weights / np.maximum(totals, 1e-12), 1.0 / n_b)
         self._activity = np.clip(np.minimum(load, 1.0), self.radio.idle_activity, 1.0)
 
-        self.last = StepResult(self.tick, paths, rx, rep, sinr, sinr_rep, rsrq, tput, airtime, load, interference)
+        self.last = StepResult(self.tick, paths, rx, rep, sinr, sinr_rep, rsrq, tput, airtime, load, interference,
+                               serving.copy(), beam.copy())
         df = self.snapshot()
         self.history.append(df)
         return df

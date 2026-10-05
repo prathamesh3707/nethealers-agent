@@ -8,6 +8,10 @@ dependencies = [
     "numpy>=2.0",
     "pandas>=2.2",
     "matplotlib>=3.9",
+    "pyarrow>=17",
+    "scikit-learn>=1.6",
+    "torch>=2.5",
+    "tabulate>=0.10.0",
 ]
 
 [dependency-groups]

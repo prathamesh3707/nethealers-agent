@@ -7,7 +7,7 @@ Simulation project for the ITU AI for Good Build-a-thon 5.0. An agent watches a 
 | Step | What | State |
 |---|---|---|
 | 1 | Signal world: 3D street, signal maths, problems, fixes, twin | Done |
-| 2 | Dataset and diagnosis model (with and without LWM) | Next |
+| 2 | Dataset and diagnosis model (with LWM) | Done |
 | 3 | Agent brain, safety checks, automatic tests | Planned |
 | 4 | 3D game with live agent panel | Planned |
 
@@ -19,7 +19,11 @@ Needs [uv](https://docs.astral.sh/uv/). Python 3.12 is installed automatically.
 uv sync
 uv run pytest                       # 24 tests, under a second
 uv run python scripts/step1_demo.py # narrated demo, pictures in out/
+uv run python scripts/make_dataset.py    # ~12 min on half the cores: data/train.parquet, data/station_road.parquet
+uv run python scripts/train_diagnosis.py # ~1.5 min: models/diagnosis.joblib, out/diagnosis_report.md
 ```
+
+The LWM weights (2.5 MB, MIT licence) download automatically into `models/lwm/` on first use.
 
 If `import nethealers` fails on macOS, the editable-install `.pth` file may have been marked hidden (Python 3.12 skips hidden `.pth` files). Fix with `chflags nohidden .venv/lib/python3.12/site-packages/*.pth`, or prefix commands with `PYTHONPATH=src`.
 
@@ -68,9 +72,36 @@ Path loss follows 3GPP TR 38.901 (UMi street canyon, 28 GHz). Tower antennas use
 
 `world.twin()` returns the agent's copy: same building map and network settings, but without hidden objects, hidden wall changes, outside interferers, moving blockers, shadowing or measurement noise. `world.twin(include_dynamic=True)` adds the blockers, standing in for a twin that has been told where the bus is.
 
+## Diagnosis model (`src/nethealers/diagnosis`)
+
+Names the cause of each phone's trouble (none, blockage, wrong beam, interference, congestion) with a calibrated confidence.
+
+**Dataset** (`dataset.py`). Each episode builds a random grid city or a random long street, sometimes removes neighbour links, runs normal ticks, adds one random problem, then runs 1-3 more ticks next to a copy of the world without the problem. A phone gets the problem's label only if the problem really hurt it compared with that copy (clarity 3 dB worse, or lost data). A crowd hurts two ways: phones on the overloaded tower are labelled congestion, phones on neighbouring towers (hurt by its extra transmissions) are labelled interference. Station Road is never used for training; it's a separate test.
+
+**Inputs** (`features.py`). Only what a network can observe: per-beam and per-tower strength reports, clarity, quality, data rate vs demand, tower load and phone counts, handovers, and neighbourhood context (how many nearby phones and same-tower phones also dropped). Every input compares now with just before.
+
+**LWM** (`lwm.py`). The simulator's paths become the 32-antenna x 32-subcarrier channel LWM expects (DeepMIMO formula), LWM returns a 64-number fingerprint, and the model gets the fingerprint now and how it changed.
+
+**Model** (`train.py`). scikit-learn gradient-boosted trees, class-balanced, then isotonic calibration so "90% sure" means right about 90% of the time. The agent uses the plain + LWM version.
+
+| Version | Unseen cities and streets | Station Road (never trained on) |
+|---|---|---|
+| Plain inputs | 94.5% accuracy, macro F1 0.927 | 89.6%, F1 0.873 |
+| **Plain + LWM (used)** | **95.1%, F1 0.936** | **90.2%, F1 0.882** |
+| LWM fingerprint only | 60.3%, F1 0.316 | 54.6%, F1 0.289 |
+
+When the model is at least 90% sure (about 81% of unseen-city cases), it is right 99.3% of the time. LWM alone can't tell interference or congestion apart, because neither changes the shape of a phone's own channel; combined with the plain inputs it adds a small, consistent gain. Full report: [docs/diagnosis_report.md](docs/diagnosis_report.md).
+
+```python
+from nethealers.diagnosis import Diagnoser
+d = Diagnoser.load()
+report = d.diagnose(world, base_frames, base_result)  # cause, confidence and probabilities per phone
+```
+
 ## Simplifications to state honestly
 
 - No diffraction around corners; the scatter floor stands in for it.
 - One reflection per path, no ground bounce, paths add as power (no phase).
 - Buildings are axis-aligned boxes.
+- Diagnosis labels come from the simulator, so accuracy here says how well the model reads *this* simulator, not a real network.
 - Future work: validate against Sionna RT ray tracing.

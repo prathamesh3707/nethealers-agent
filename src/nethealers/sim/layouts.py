@@ -99,5 +99,63 @@ def random_city(seed: int, n_ues: int = 60, n_towers: int = 3, blocks: tuple[int
     ues = []
     for u in range(n_ues):
         x, y = street_point()
-        ues.append(UE(u, x, y, demand_mbps=float(rng.uniform(2, 12))))
+        ues.append(UE(u, x, y, z=float(rng.uniform(1.2, 1.7)), demand_mbps=float(rng.uniform(2, 12))))
     return World(f"City {seed}", buildings, towers, ues, seed=seed, extent=(0, width, 0, depth))
+
+
+def random_street(seed: int, n_ues: int = 60, n_towers: int = 3) -> World:
+    """One long street with buildings on both sides and towers along it (like Station Road, but random)."""
+    rng = np.random.default_rng(seed)
+    length = float(rng.uniform(300, 500))
+    road = float(rng.uniform(16, 30))
+    walk = 5.0
+    y_road0, y_road1 = 100.0, 100.0 + road
+    buildings: list[Box] = []
+    for side in (-1, 1):
+        x = float(rng.uniform(0, 15))
+        while x < length - 15:
+            width = float(rng.uniform(20, 70))
+            depth = float(rng.uniform(25, 60))
+            front = y_road0 - walk if side < 0 else y_road1 + walk
+            if rng.random() < 0.12:  # low wall or flyover edge right by the road
+                depth, height, material = float(rng.uniform(6, 12)), float(rng.uniform(6, 9)), "concrete"
+            else:
+                height = float(rng.uniform(8, 40))
+                material = str(rng.choice(MATERIALS, p=MATERIAL_ODDS))
+            setback = float(rng.uniform(0, 8))
+            y0, y1 = (front - setback - depth, front - setback) if side < 0 else (front + setback, front + setback + depth)
+            buildings.append(Box(f"S{side:+d}{len(buildings)}", x, min(x + width, length), y0, y1, 0, height,
+                                 material=material))
+            x += width + float(rng.uniform(0, 18))
+    towers = []
+    xs = np.sort(rng.uniform(10, length - 10, n_towers))
+    for t, tx in enumerate(xs):
+        side = -1 if t % 2 == 0 else 1
+        ty = y_road0 - rng.uniform(1, walk) if side < 0 else y_road1 + rng.uniform(1, walk)
+        boresight = (0.0 if rng.random() < 0.5 else 180.0) + float(rng.uniform(-35, 35))
+        towers.append(Tower(t, f"Tower {chr(65 + t)}", float(tx), float(ty), float(rng.uniform(8, 12)),
+                            boresight_deg=boresight, tilt_deg=float(rng.uniform(5, 10))))
+    ues = []
+
+    def add(x, y, group):
+        ues.append(UE(len(ues), float(x), float(y), z=float(rng.uniform(1.2, 1.7)), group=group,
+                      demand_mbps=float(rng.uniform(2, 12))))
+
+    for _ in range(int(rng.integers(1, 3))):  # bus stops and other busy spots
+        cx = rng.uniform(20, length - 40)
+        top = rng.random() < 0.5
+        for _ in range(int(rng.integers(8, 15))):
+            yy = rng.uniform(y_road1 + 0.5, y_road1 + walk - 0.5) if top else rng.uniform(y_road0 - walk + 0.5,
+                                                                                          y_road0 - 0.5)
+            add(cx + rng.uniform(0, 22), yy, "cluster")
+    while len(ues) < n_ues:
+        x = rng.uniform(5, length - 5)
+        r = rng.random()
+        if r < 0.4:
+            y = rng.uniform(y_road1 + 0.5, y_road1 + walk - 0.5)
+        elif r < 0.8:
+            y = rng.uniform(y_road0 - walk + 0.5, y_road0 - 0.5)
+        else:
+            y = rng.uniform(y_road0 + 1, y_road1 - 1)
+        add(x, y, "street")
+    return World(f"Street {seed}", buildings, towers, ues, seed=seed, extent=(-10, length + 10, 20, 180 + road))
