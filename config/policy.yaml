@@ -1,0 +1,45 @@
+# Operator policy for the self-healing agent. The rule-checker enforces every line;
+# the AI can never loosen it. Change values here, not in code.
+
+limits:
+  power_step_db: 3          # largest single power change
+  power_total_db: 6         # furthest a tower may drift from its planned power
+  tilt_step_deg: 2
+  tilt_total_deg: 4
+  rebalance_step_db: 6
+  rebalance_total_db: 8
+  handover_max_phones: 30
+
+cooldown_ticks:             # wait before the same setting on the same tower changes again
+  power: 10
+  tilt: 10
+  rebalance: 10
+  beam: 3
+  handover: 2
+
+collateral:                 # predicted harm to phones that weren't the target
+  max_harmed_phones: 2      # phones losing 3 dB or more, or their data rate
+  min_median_change_db: -1.0
+
+gain:
+  min_predicted_db: 2.0     # a fix must be predicted to help at least this much
+  twin_error_margin: 0.3    # ...plus this share of the twin's recent error for that tower
+
+evidence:
+  max_report_age: 1         # ignore phones whose reports are older than this (ticks)
+
+confidence:
+  act_alone: 0.8            # diagnosis at least this sure: act on its own
+  act_small: 0.6            # between the two: only small, low-risk fixes; below: ask a human
+
+autonomy:                   # which fixes may run without a person approving
+  beam_override: auto
+  handover: auto
+  power_auto_db: 1          # bigger power steps need approval
+  tilt_auto_deg: 1
+  rebalance_auto_db: 3
+
+verify:
+  ticks: 3                  # wait this long before judging a fix
+  keep_if_share_of_prediction: 0.4
+  max_attempts: 3           # then ask a human

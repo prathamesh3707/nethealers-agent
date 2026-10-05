@@ -8,7 +8,10 @@ Simulation project for the ITU AI for Good Build-a-thon 5.0. An agent watches a 
 |---|---|---|
 | 1 | Signal world: 3D street, signal maths, problems, fixes, twin | Done |
 | 2 | Dataset and diagnosis model (with LWM) | Done |
-| 3 | Agent brain, safety checks, automatic tests | Planned |
+| 3a | Agent core: monitor, twin rehearsal, rule-checker, act, verify, undo, withdraw | Done |
+| 3b | Six test scenarios, five methods, evaluation report | Done |
+| 3c | Language-model roles, knowledge base, decision log in Postgres | Next |
+| 3d | Backend API for the game | Planned |
 | 4 | 3D game with live agent panel | Planned |
 
 ## Setup
@@ -21,6 +24,7 @@ uv run pytest                       # 24 tests, under a second
 uv run python scripts/step1_demo.py # narrated demo, pictures in out/
 uv run python scripts/make_dataset.py    # ~12 min on half the cores: data/train.parquet, data/station_road.parquet
 uv run python scripts/train_diagnosis.py # ~1.5 min: models/diagnosis.joblib, out/diagnosis_report.md
+uv run python scripts/run_scenarios.py   # ~2 min: docs/evaluation_report.md, docs/eval_timeline.png
 ```
 
 The LWM weights (2.5 MB, MIT licence) download automatically into `models/lwm/` on first use.
@@ -97,6 +101,36 @@ from nethealers.diagnosis import Diagnoser
 d = Diagnoser.load()
 report = d.diagnose(world, base_frames, base_result)  # cause, confidence and probabilities per phone
 ```
+
+## The agent (`src/nethealers/agent`)
+
+Call `agent.on_tick()` after every `world.step()`. Each incident moves through: detect, diagnose, rehearse on the twin, safety check, act, verify after 3 s, then keep, undo and try the next fix, ask a person, or withdraw the temporary fix once the cause has gone. Every step is an `Event` with a plain-language sentence (this is what the game's side panel will show).
+
+| File | Job |
+|---|---|
+| `monitor.py` | Flags phones whose reported clarity drops 4 dB below their own normal (and below 13 dB) or that lose data, for 2 ticks in a row. Ignores phones with stale reports. Groups them into incidents; nearby newcomers join an open incident. |
+| `twin.py` | Builds the twin from the map and settings, calibrates it against pre-incident phone reports, then adds a hypothesis: extra loss on links that got much weaker (a blocker), extra interference where clarity is worse than the twin can explain. Keeps a running error per tower. |
+| `planner.py` | Lists fixes worth trying for the diagnosed cause (including smaller partial moves and "go back to planned settings"), rehearses each on the twin for 3 ticks, and ranks them by gain minus harm. Exact numbers come from this search, not from a language model. |
+| `rules.py` | Plain-code rule-checker with the final say: step sizes, drift from planned settings, legal power limits, cooldowns, predicted harm, protected zones (with a safety margin and a hold after any breach), and autonomy (act alone, small steps only, or ask a person). |
+| `agent.py` | The loop. Reads settings back after every change, so a tower that silently ignores commands is caught and escalated. Checks protected zones every tick after a move and undoes at once if one goes over. |
+| `config/policy.yaml` | The operator's policy. The agent can never loosen it. |
+
+## Evaluation (`src/nethealers/eval`, `docs/evaluation_report.md`)
+
+Six scenarios on Station Road (normal day, moving bus, wrong beam, twin mismatch, hospital-zone conflict, faulty and stale data), five methods (no action, network alone, simple rule fixer, agent without twin, full agent), 8 seeds each, scored against the simulator's hidden truth. Degraded phone-seconds, during the problem + after it ends (lower is better):
+
+| Scenario | Network alone | Rule fixer | Full agent |
+|---|---|---|---|
+| Normal day | 0 | 0 | 0 (no false alarms, no changes) |
+| Moving bus | 221 + 19 | 76 + 91 | **98 + 22** |
+| Wrong beam | 418 | 131 | **34** |
+| Twin mismatch | 326 | 121 + 78 | **98 + 16** |
+| Hospital-zone conflict | 326 | 82 + 87, **24 zone breaches** | 237 + 0, **0 breaches** |
+| Faulty and stale data | 754 | 734 | **568** |
+
+The agent made 1-4 changes per run where the rule fixer made about 26, broke no limits in any run, and named the right cause in 88-100% of incidents. The rule fixer is faster during a blockage but never withdraws its moves and breaks the hospital limit; the agent is slower and more careful.
+
+![timeline](docs/eval_timeline.png)
 
 ## Simplifications to state honestly
 

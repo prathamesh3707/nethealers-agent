@@ -155,6 +155,14 @@ class StepResult:
     interference_mw: np.ndarray  # (U,) interference per resource element
     serving: np.ndarray  # (U,) serving tower per phone
     beam: np.ndarray  # (U,) beam in use per phone
+    ue_ids: np.ndarray  # (U,) phone ids, in the same order
+    report_age: np.ndarray  # (U,) ticks since each phone's reports last updated (0 = fresh)
+    tower_power_dbm: np.ndarray  # (T,) settings in force this tick
+    tower_tilt_deg: np.ndarray  # (T,)
+    xy: np.ndarray  # (U, 2) phone positions this tick
+    demand_mbps: np.ndarray  # (U,)
+    groups: list  # (U,) phone group labels
+    beam_locked: np.ndarray  # (U,) bool: beam pinned by the operator or agent (a stuck-beam fault doesn't show)
 
 
 def spectral_efficiency(sinr_db: np.ndarray, radio: RadioConfig) -> np.ndarray:
@@ -164,16 +172,20 @@ def spectral_efficiency(sinr_db: np.ndarray, radio: RadioConfig) -> np.ndarray:
 
 
 def schedule(demand_mbps: np.ndarray, rate_full_mbps: np.ndarray, serving: np.ndarray, n_towers: int):
-    """Share each tower's airtime between its phones (fair water-filling, capped by demand)."""
-    need = np.where(rate_full_mbps > 1e-9, demand_mbps / np.maximum(rate_full_mbps, 1e-9), np.inf)
+    """Share each tower's airtime between its phones (fair water-filling, capped by demand).
+
+    A phone with no usable link (clarity too low for any data) isn't scheduled at all, as a
+    real scheduler drops a link that has failed; it gets nothing and adds no load.
+    """
+    usable = rate_full_mbps > 1e-9
+    need = np.where(usable, demand_mbps / np.maximum(rate_full_mbps, 1e-9), 0.0)
     airtime = np.zeros(len(demand_mbps))
     load = np.zeros(n_towers)
     for t in range(n_towers):
-        idx = np.nonzero(serving == t)[0]
+        idx = np.nonzero((serving == t) & usable)[0]
         if len(idx) == 0:
             continue
-        finite = np.isfinite(need[idx])
-        load[t] = need[idx][finite].sum() + (~finite).sum()  # a phone with no usable link wants it all
+        load[t] = need[idx].sum()
         remaining, left = 1.0, len(idx)
         for i in idx[np.argsort(need[idx])]:
             give = min(need[i], remaining / left)
@@ -209,6 +221,18 @@ class World:
         self.cio: dict[tuple[int, int], float] = {}  # handover bias from tower a to tower b (dB)
         # Neighbour relations the network is missing: phones on tower a can't hand over to tower b.
         self.missing_relations: set[tuple[int, int]] = set()
+        # Built-in network behaviour; switched off only for the "no action at all" comparison.
+        self.builtin_handover = True
+        self.builtin_beam_management = True
+        # Faults for testing the agent: towers whose settings silently stop changing,
+        # and phones whose reports stop updating.
+        self.frozen_towers: set[int] = set()
+        self.stale_phones: set[int] = set()
+        self._report_age: dict[int, int] = {}
+        # Twin-only adjustments: extra loss per (tower id, phone id) learned from reports or
+        # assumed from a diagnosis, and extra interference per phone id (mW per resource element).
+        self.loss_offset_db: dict[tuple[int, int], float] = {}
+        self.extra_interference_mw: dict[int, float] = {}
         self.radio = radio or RadioConfig()
         self.panel = panel or PanelConfig()
         self.mobility = mobility or MobilityConfig()
@@ -269,7 +293,12 @@ class World:
     # ------------------------------------------------------------------ twin and copies
 
     def copy(self) -> "World":
-        return copy.deepcopy(self)
+        """Independent copy of the current state (history of past ticks is not copied)."""
+        history, self.history = self.history, []
+        try:
+            return copy.deepcopy(self)
+        finally:
+            self.history = history
 
     def twin(self, include_dynamic: bool = False) -> "World":
         """The agent's copy: building map and network settings only.
@@ -279,11 +308,13 @@ class World:
         left out too unless `include_dynamic` (the twin learns about a bus
         only by guessing where it is).
         """
-        tw = copy.deepcopy(self)
+        tw = self.copy()
         tw.is_twin = True
         tw.boxes = [b for b in tw.boxes if not b.hidden and (include_dynamic or not b.dynamic)]
         tw.surface_mods = [m for m in tw.surface_mods if not m.hidden]
         tw.interferers = [i for i in tw.interferers if not i.hidden]
+        tw.frozen_towers = set()  # hidden faults: the twin assumes every control works...
+        tw.stale_phones = set()  # ...and computes its own fresh values
         tw.history = []
         return tw
 
@@ -315,6 +346,13 @@ class World:
                 if m.any():
                     shadow[m] = self._shadow[t].at(ue_pos[paths.ue[m], 0], ue_pos[paths.ue[m], 1])
             paths.loss_db = paths.loss_db + shadow
+        if self.loss_offset_db and len(paths):
+            idx = self.ue_index()
+            off = np.zeros((len(self.towers), len(self.ues)))
+            for (t, uid), db in self.loss_offset_db.items():
+                if uid in idx:
+                    off[t, idx[uid]] += db
+            paths.loss_db = paths.loss_db + off[paths.tower, paths.ue]
         return paths
 
     def received_power(self, paths: Paths) -> np.ndarray:
@@ -354,6 +392,10 @@ class World:
             rep = rx_db
         else:
             rep = np.round(rx_db + self.rng.normal(0, self.realism.rsrp_noise_db, rx_db.shape))
+        ue_ids = np.array([u.id for u in self.ues], dtype=int)
+        stale = self._stale_rows(ue_ids)
+        for i, j in stale:
+            rep[:, :, i] = self.last.rsrp_beam_dbm[:, :, j]
         cell_rsrp = rep.max(axis=1)  # (T, U) best beam per tower
 
         self._attach_and_handover(cell_rsrp)
@@ -366,12 +408,20 @@ class World:
         # Interference: every other tower, weighted by how busy it is and where its beams point.
         per_tower = np.einsum("tb,tbu->tu", self._beam_weights, rx) * self._activity[:, None]
         interference = per_tower.sum(axis=0) - per_tower[serving, u_idx] + self._external_interference_mw()
+        if self.extra_interference_mw:
+            interference = interference + np.array([self.extra_interference_mw.get(int(u), 0.0) for u in ue_ids])
         noise = 10 ** (self.radio.noise_dbm_per_re / 10)
         sinr = 10 * np.log10(np.maximum(signal, 1e-30) / (interference + noise))
         if self.is_twin:
             sinr_rep = sinr.copy()
         else:
             sinr_rep = np.round(2 * (sinr + self.rng.normal(0, self.realism.sinr_noise_db, n_u))) / 2
+        for i, j in stale:
+            sinr_rep[i] = self.last.sinr_reported_db[j]
+        stale_set = {i for i, _ in stale}
+        for i, uid in enumerate(ue_ids):
+            self._report_age[int(uid)] = self._report_age.get(int(uid), 0) + 1 if i in stale_set else 0
+        report_age = np.array([self._report_age[int(u)] for u in ue_ids], dtype=int)
 
         rate_full = self.radio.data_bandwidth_hz * spectral_efficiency(sinr, self.radio) / 1e6
         demand = np.array([u.demand_mbps for u in self.ues]) if n_u else np.zeros(0)
@@ -391,10 +441,20 @@ class World:
         self._activity = np.clip(np.minimum(load, 1.0), self.radio.idle_activity, 1.0)
 
         self.last = StepResult(self.tick, paths, rx, rep, sinr, sinr_rep, rsrq, tput, airtime, load, interference,
-                               serving.copy(), beam.copy())
+                               serving.copy(), beam.copy(), ue_ids, report_age,
+                               np.array([t.power_dbm for t in self.towers]), np.array([t.tilt_deg for t in self.towers]),
+                               np.array([[u.x, u.y] for u in self.ues]).reshape(-1, 2), demand,
+                               [u.group for u in self.ues], np.array([u.lock_reason == "override" for u in self.ues]))
         df = self.snapshot()
         self.history.append(df)
         return df
+
+    def _stale_rows(self, ue_ids: np.ndarray) -> list[tuple[int, int]]:
+        """(row now, row last tick) for phones whose reports are stuck at last tick's values."""
+        if not self.stale_phones or self.last is None:
+            return []
+        prev = {int(u): j for j, u in enumerate(self.last.ue_ids)}
+        return [(i, prev[int(u)]) for i, u in enumerate(ue_ids) if int(u) in self.stale_phones and int(u) in prev]
 
     def _attach_and_handover(self, cell_rsrp: np.ndarray) -> None:
         mob = self.mobility
@@ -406,6 +466,8 @@ class World:
             if u.serving is None:
                 u.serving = int(np.argmax(cell_rsrp[:, i]))
                 u.beam = None
+                continue
+            if not self.builtin_handover:
                 continue
             s = u.serving
             biased = cell_rsrp[:, i] + np.array([self.cio.get((s, t), 0.0) for t in range(len(self.towers))])
@@ -431,6 +493,8 @@ class World:
                 u.beam = u.beam_lock
                 continue
             beams = rep[u.serving, :, i]
+            if not self.builtin_beam_management and u.beam is not None:
+                continue
             best = int(np.argmax(beams))
             if u.beam is None or beams[best] > beams[u.beam] + margin:
                 u.beam = best
@@ -438,14 +502,18 @@ class World:
     # ------------------------------------------------------------------ reporting
 
     def snapshot(self) -> pd.DataFrame:
-        """One row per phone for the last tick. `true_*` columns are hidden from the agent."""
+        """One row per phone as measured in the last tick. `true_*` columns are hidden from the agent.
+
+        Everything comes from the last tick's record, so changes made since (a handover just
+        ordered) show up only after the next tick, as they would in a real network.
+        """
         r = self.last
-        if r is None or not self.ues:
+        if r is None or len(r.ue_ids) == 0:
             return pd.DataFrame()
-        n_u = len(self.ues)
+        n_u = len(r.ue_ids)
         u_idx = np.arange(n_u)
-        serving = np.array([u.serving for u in self.ues])
-        beam = np.array([u.beam for u in self.ues])
+        serving = r.serving
+        beam = r.beam
         cell = r.rsrp_beam_dbm.max(axis=1)  # (T, U)
         nbr = cell.copy()
         nbr[serving, u_idx] = -np.inf
@@ -453,13 +521,13 @@ class World:
         true_cell = 10 * np.log10(np.maximum(r.rx_mw.max(axis=1), 1e-30))
         return pd.DataFrame({
             "tick": self.tick,
-            "ue": [u.id for u in self.ues],
-            "group": [u.group for u in self.ues],
-            "x": [u.x for u in self.ues],
-            "y": [u.y for u in self.ues],
+            "ue": r.ue_ids,
+            "group": r.groups,
+            "x": r.xy[:, 0],
+            "y": r.xy[:, 1],
             "serving": serving,
             "beam": beam,
-            "beam_locked": [u.beam_lock is not None for u in self.ues],
+            "beam_locked": r.beam_locked,
             "best_beam": r.rsrp_beam_dbm[serving, :, u_idx].argmax(axis=1),
             "rsrp_dbm": cell[serving, u_idx],
             "beam_rsrp_dbm": r.rsrp_beam_dbm[serving, beam, u_idx],
@@ -468,8 +536,9 @@ class World:
             "sinr_db": r.sinr_reported_db,
             "rsrq_db": np.round(r.rsrq_db, 1),
             "throughput_mbps": np.round(r.throughput_mbps, 2),
-            "demand_mbps": [u.demand_mbps for u in self.ues],
+            "demand_mbps": r.demand_mbps,
             "tower_load": r.load[serving],
+            "report_age": r.report_age,
             "true_sinr_db": r.sinr_db,
             "true_rsrp_dbm": true_cell[serving, u_idx],
         })
@@ -484,7 +553,7 @@ class World:
         r = self.last
         rows = []
         for t in self.towers:
-            mask = np.array([u.serving == t.id for u in self.ues])
+            mask = r.serving == t.id
             rows.append({
                 "tower": t.name, "phones": int(mask.sum()), "load": round(float(r.load[t.id]), 2),
                 "power_dbm": t.power_dbm, "tilt_deg": t.tilt_deg,

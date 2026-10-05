@@ -82,8 +82,21 @@ def describe(world: World, a: Action) -> str:
     raise TypeError(a)
 
 
+def _tower_of(world: World, a: Action) -> int:
+    if isinstance(a, (BeamOverride, PowerChange, TiltChange)):
+        return a.tower
+    if isinstance(a, Handover):
+        return a.target
+    return a.source
+
+
 def apply_action(world: World, a: Action) -> Applied:
+    """Apply a fix. If the tower's actuator is faulty (world.frozen_towers) nothing changes,
+    but the caller isn't told: only checking the result reveals it."""
     rec = Applied(a, world.tick)
+    if _tower_of(world, a) in world.frozen_towers:
+        rec.undo["frozen"] = True
+        return rec
     if isinstance(a, BeamOverride):
         if not 0 <= a.beam < world.panel.n_beams:
             raise ActionError(f"beam {a.beam} doesn't exist")
@@ -134,6 +147,8 @@ def apply_action(world: World, a: Action) -> Applied:
 
 def undo_action(world: World, rec: Applied) -> None:
     a = rec.action
+    if rec.undo.get("frozen"):
+        return
     if isinstance(a, BeamOverride):
         idx = world.ue_index()
         for uid, (lock, reason, beam) in rec.undo.items():
