@@ -420,7 +420,11 @@ class Agent:
         sat_gain = float(np.mean([sat.loc[u] - att.pre_sat[u] for u in tg])) if tg else 0.0
         healthy = float(np.mean([self.monitor.healthy(u, df.loc[u, "sinr_db"], sat.loc[u]) for u in tg])) if tg else 1
         busy_elsewhere = {p for i in self.incidents.values() if i is not inc and i.status in ACTIVE for p in i.phones}
-        others = [u for u in att.others_pre if u in df.index and u not in busy_elsewhere]
+        # Phones that joined a blockage incident after the fix because the bus was still arriving are victims of
+        # the blocker, not of the fix: their own tower's signal fell sharply, which none of the fixes can cause.
+        joined = set(inc.phones) - set(att.pre_sinr)
+        same_cause = self._blocked_since(inc, joined) if inc.cause == "blockage" else set()
+        others = [u for u in att.others_pre if u in df.index and u not in busy_elsewhere and u not in same_cause]
         # Count only harm beyond the general drift: the problem itself may still be pulling everyone down.
         drops = np.array([df.loc[u, "sinr_db"] - att.others_pre[u] for u in others])
         drift = float(np.median(drops)) if len(drops) else 0.0
@@ -475,6 +479,14 @@ class Agent:
             return self._escalate(inc, f"{fails} fixes tried without success.")
         inc.status = "new"
         self._plan(inc)
+
+    def _blocked_since(self, inc: Incident, phones: set) -> set:
+        """Phones whose main-tower signal fell more than 8 dB since the incident began (more than any power step)."""
+        w, base = self.world, inc.base_result
+        now, then = w.last.rsrp_beam_dbm.max(axis=1), base.rsrp_beam_dbm.max(axis=1)
+        idx, pos = w.ue_index(), {int(u): j for j, u in enumerate(base.ue_ids)}
+        return {p for p in phones if p in idx and p in pos
+                and now[inc.main_tower, idx[p]] - then[inc.main_tower, pos[p]] < -8.0}
 
     def _ask_operator(self, inc: Incident) -> None:
         if self.operator is None:

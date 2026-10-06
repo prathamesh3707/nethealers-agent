@@ -12,7 +12,7 @@ Simulation project for the ITU AI for Good Build-a-thon 5.0. An agent watches a 
 | 3b | Six test scenarios, five methods, evaluation report | Done |
 | 3c | Language-model roles, document library, decision log in Postgres | Done (live model test needs a key) |
 | 3d | Backend API for the game (sessions, controls, live WebSocket) | Done |
-| 4 | 3D game with live agent panel | Planned |
+| 4 | 3D game with live agent panel (`web/`) | Done |
 
 ## Setup
 
@@ -20,7 +20,7 @@ Needs [uv](https://docs.astral.sh/uv/). Python 3.12 is installed automatically.
 
 ```bash
 uv sync
-uv run pytest                       # 24 tests, under a second
+uv run pytest                       # ~60 tests, about 30 s once the model is trained
 uv run python scripts/step1_demo.py # narrated demo, pictures in out/
 uv run python scripts/make_dataset.py    # ~12 min on half the cores: data/train.parquet, data/station_road.parquet
 uv run python scripts/train_diagnosis.py # ~1.5 min: models/diagnosis.joblib, out/diagnosis_report.md
@@ -30,6 +30,17 @@ uv run python scripts/build_library.py   # download the rule documents, build th
 uv run python scripts/demo_agent.py      # watch the agent handle the bus, step by step
 uv run python scripts/serve.py           # game backend on http://localhost:8010 (docs at /docs)
 ```
+
+### Play the game
+
+Needs Node.js 20+ once, for the browser part.
+
+```bash
+uv run python scripts/serve.py      # terminal 1: backend on :8010
+cd web && npm install && npm run dev # terminal 2: game on http://localhost:5173
+```
+
+For a demo with one server: `cd web && npm run build`, then `scripts/serve.py` also serves the game at http://localhost:8010.
 
 To switch on the language-model roles, copy `.env.example` to `.env` and add an OpenRouter key (free models). Without a key everything still runs on plain rules.
 
@@ -144,6 +155,15 @@ A session is one street with its clock running in the background (1 tick per sec
 | `GET /sessions/{id}/events` | The agent's full log |
 | `WS /sessions/{id}/live` | One frame per tick with that tick's events: what the side panel shows |
 
+## The game (`web/`)
+
+Vite + React + TypeScript, Three.js through React Three Fiber, Zustand, Tailwind. It talks to the backend only through the API above; in development Vite forwards `/sessions` (HTTP and WebSocket) to port 8010.
+
+- **3D street** (`src/scene/Street.tsx`): buildings by material (the Glass office is see-through), the protected hospital zone (turns red when its tower goes over the limit), towers with their coverage sector and live power, tilt and load (amber when the agent has changed them), phones coloured by clarity with a line to their tower, and blockers that glide between ticks. Phones the agent is working on get a pulsing ring. Drag to orbit, scroll to zoom, hover a phone for its numbers.
+- **Toolbar** (`src/ui/Toolbar.tsx`): pick a problem, click the street. Buses and trucks drive in, wait 30 s and leave (or "drive off" now). Four quick scenarios: bus at the bus stop, stuck beams, Tower C misconfigured, crowd surge.
+- **Agent panel** (`src/ui/AgentPanel.tsx`): approval cards (Approve / Reject; the rule-checker looks again after you approve), incidents handed to you, the eight-step loop with the current step lit and the time spent in each step, the diagnosis with every cause's probability, the twin's ranked fixes with the safety reasons for the ones it rejected and the reality check (predicted vs measured), a replay slider per incident, and the live decision log.
+- **Stats bar** (`src/ui/StatsBar.tsx`): phones by band, phones hurt over time, rescued, fixes applied and undone, times you were asked, the agent's turn and whole-tick time, language-model tokens.
+
 ## Evaluation (`src/nethealers/eval`, `docs/evaluation_report.md`)
 
 Six scenarios on Station Road (normal day, moving bus, wrong beam, twin mismatch, hospital-zone conflict, faulty and stale data), five methods (no action, network alone, simple rule fixer, agent without twin, full agent), 8 seeds each, scored against the simulator's hidden truth. Degraded phone-seconds, during the problem + after it ends (lower is better):
@@ -151,9 +171,9 @@ Six scenarios on Station Road (normal day, moving bus, wrong beam, twin mismatch
 | Scenario | Network alone | Rule fixer | Full agent |
 |---|---|---|---|
 | Normal day | 0 | 0 | 0 (no false alarms, no changes) |
-| Moving bus | 221 + 19 | 76 + 91 | **98 + 22** |
-| Wrong beam | 418 | 131 | **34** |
-| Twin mismatch | 326 | 121 + 78 | **98 + 16** |
+| Moving bus | 221 + 19 | 76 + 91 | **98 + 20** |
+| Wrong beam | 418 | 131 | **32** |
+| Twin mismatch | 326 | 121 + 78 | **112 + 17** |
 | Hospital-zone conflict | 326 | 82 + 87, **24 zone breaches** | 237 + 0, **0 breaches** |
 | Faulty and stale data | 754 | 734 | **568** |
 

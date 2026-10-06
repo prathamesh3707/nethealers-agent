@@ -59,6 +59,15 @@ def test_rules_protect_the_hospital_zone(world):
     assert v.status == "rejected" and any("Hospital zone" in r for r in v.reasons)
     v = rc.check(move, world, 10, pred=pred(move, zone={"Hospital zone": 0.40}), confidence=0.95)
     assert v.status == "approved"
+    # Already over the limit (a crowd on the hospital's tower): a change that takes load off it is not blocked,
+    # judged against the twin's own "do nothing" load rather than the measured one.
+    relief = pred(PowerChange(0, 1.0), zone={"Hospital zone": 3.1})
+    relief.zone_loads_if_nothing = {"Hospital zone": 3.5}
+    v = rc.check(relief.action, world, 10, pred=relief, confidence=0.95)
+    assert not any("Hospital zone" in r for r in v.reasons)
+    worse = pred(PowerChange(0, 1.0), zone={"Hospital zone": 3.6})
+    worse.zone_loads_if_nothing = {"Hospital zone": 3.5}
+    assert any("Hospital zone" in r for r in rc.check(worse.action, world, 10, pred=worse).reasons)
 
 
 def test_rules_cooldown_and_harm(world):

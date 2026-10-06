@@ -127,6 +127,12 @@ class RuleChecker:
             for z in world.zones:
                 load = pred.zone_loads.get(z.name)
                 now = float(world.last.load[z.tower])
+                pushes = isinstance(a, (Handover, LoadRebalance)) and a.target == z.tower
+                if not pushes:
+                    # A change that doesn't move phones onto the zone's tower is judged against the twin doing
+                    # nothing (the twin may not know a crowd's exact demand), so relief isn't blocked. Moves onto
+                    # the zone's tower keep the stricter test against the measured load.
+                    now = pred.zone_loads_if_nothing.get(z.name, now)
                 if load is not None and load > z.max_load - ZONE_MARGIN and load > now + 0.02:
                     why.append(f"{z.name} tower load would reach {load:.2f} (limit {z.max_load:.2f}, "
                                f"kept {ZONE_MARGIN:.2f} below it for safety)")

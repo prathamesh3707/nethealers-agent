@@ -1,0 +1,322 @@
+import { Html, OrbitControls } from '@react-three/drei'
+import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import * as THREE from 'three'
+import type { Blocker, Building, Phone, Scene, Tower, Zone } from '../api'
+import { BAND_COLOR } from '../stages'
+import { useFocusedIncident, useGame } from '../store'
+
+// Simulator metres (x east, y north, z up) -> three.js (x right, y up, z toward the viewer).
+const CX = 200
+const CY = 110
+const toV = (x: number, y: number, h = 0) => new THREE.Vector3(x - CX, h, -(y - CY))
+
+const MATERIAL: Record<string, { color: string; opacity: number }> = {
+  glass: { color: '#7dd3fc', opacity: 0.55 },
+  concrete: { color: '#94a3b8', opacity: 1 },
+  brick: { color: '#b07a5a', opacity: 1 },
+  metal: { color: '#a1a1aa', opacity: 1 },
+}
+const BLOCKER_COLOR: Record<string, string> = {
+  bus: '#facc15', truck: '#f97316', car: '#60a5fa', crowd: '#e879f9', kiosk: '#fb7185', hoarding: '#c084fc',
+}
+
+export default function Street() {
+  const scene = useGame((s) => s.scene)
+  const tool = useGame((s) => s.tool)
+  if (!scene) return <div className="grid h-full place-items-center text-slate-500">Starting the street…</div>
+  return (
+    <Canvas
+      shadows
+      camera={{ position: [-20, 300, 250], fov: 45, near: 1, far: 3000 }}
+      style={{ cursor: tool ? 'crosshair' : 'grab' }}
+    >
+      <color attach="background" args={['#0b1220']} />
+      <fog attach="fog" args={['#0b1220', 450, 900]} />
+      <ambientLight intensity={0.55} />
+      <directionalLight position={[-150, 260, 160]} intensity={1.3} castShadow
+        shadow-mapSize={[2048, 2048]} shadow-camera-left={-260} shadow-camera-right={260}
+        shadow-camera-top={200} shadow-camera-bottom={-200} />
+      <World scene={scene} />
+      <OrbitControls makeDefault target={[0, 0, 0]} maxPolarAngle={Math.PI / 2.15} minDistance={60} maxDistance={700} />
+    </Canvas>
+  )
+}
+
+function World({ scene }: { scene: Scene }) {
+  const frame = useGame((s) => s.frame)
+  const [x0, x1, y0, y1] = scene.extent
+  return (
+    <group>
+      <Ground extent={[x0, x1, y0, y1]} />
+      {scene.zones.map((z) => <ZoneArea key={z.name} zone={z} load={frame?.towers[z.tower]?.load ?? 0} />)}
+      {scene.buildings.map((b) => <BuildingBox key={b.name} b={b} />)}
+      {frame?.towers.map((t) => <TowerMast key={t.id} t={t} />)}
+      {frame && <Links phones={frame.phones} towers={frame.towers} />}
+      {frame && <Phones phones={frame.phones} />}
+      {frame?.blockers.map((b) => <BlockerBox key={b.id} b={b} />)}
+      {frame?.problems.filter((p) => p.kind === 'booster' && p.x != null).map((p) => (
+        <Booster key={p.id} x={p.x!} y={p.y!} />
+      ))}
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------- ground and click-to-place
+
+function Ground({ extent }: { extent: [number, number, number, number] }) {
+  const tool = useGame((s) => s.tool)
+  const place = useGame((s) => s.place)
+  const [hover, setHover] = useState<THREE.Vector3 | null>(null)
+  const [x0, x1, y0, y1] = extent
+  const w = x1 - x0
+  const h = y1 - y0
+  const centre = toV((x0 + x1) / 2, (y0 + y1) / 2)
+
+  const toWorld = (p: THREE.Vector3) => ({ x: p.x + CX, y: -p.z + CY })
+  const onDown = (e: ThreeEvent<PointerEvent>) => {
+    if (!tool || e.button !== 0) return
+    e.stopPropagation()
+    const { x, y } = toWorld(e.point)
+    void place(Math.round(x * 10) / 10, Math.round(y * 10) / 10)
+  }
+
+  return (
+    <group>
+      <mesh rotation-x={-Math.PI / 2} position={[centre.x, -0.05, centre.z]} receiveShadow
+        onPointerDown={onDown}
+        onPointerMove={(e) => tool && setHover(e.point.clone())}
+        onPointerOut={() => setHover(null)}>
+        <planeGeometry args={[w + 200, h + 200]} />
+        <meshStandardMaterial color="#111827" />
+      </mesh>
+      {/* Station Road and its pavements */}
+      <Strip x0={x0} x1={x1} y0={88} y1={112} color="#1f2937" />
+      <Strip x0={x0} x1={x1} y0={82.5} y1={87.5} color="#334155" />
+      <Strip x0={x0} x1={x1} y0={112.5} y1={117.5} color="#334155" />
+      <Strip x0={222} x1={244} y0={113} y1={117} color="#0e7490" h={0.03} />
+      <Html position={toV(233, 119, 0.2)} center className="pointer-events-none">
+        <div className="label whitespace-nowrap text-cyan-300">Bus stop</div>
+      </Html>
+      {Array.from({ length: Math.floor(w / 12) }, (_, i) => (
+        <Strip key={i} x0={x0 + i * 12 + 2} x1={x0 + i * 12 + 7} y0={99.7} y1={100.3} color="#64748b" h={0.03} />
+      ))}
+      {hover && tool && (
+        <mesh position={[hover.x, 0.3, hover.z]} rotation-x={-Math.PI / 2}>
+          <ringGeometry args={[3, 4.2, 32]} />
+          <meshBasicMaterial color="#fbbf24" transparent opacity={0.9} />
+        </mesh>
+      )}
+    </group>
+  )
+}
+
+function Strip({ x0, x1, y0, y1, color, h = 0.01 }: { x0: number; x1: number; y0: number; y1: number; color: string; h?: number }) {
+  const c = toV((x0 + x1) / 2, (y0 + y1) / 2, h)
+  return (
+    <mesh rotation-x={-Math.PI / 2} position={c} receiveShadow>
+      <planeGeometry args={[x1 - x0, y1 - y0]} />
+      <meshStandardMaterial color={color} />
+    </mesh>
+  )
+}
+
+function ZoneArea({ zone, load }: { zone: Zone; load: number }) {
+  const c = toV((zone.x0 + zone.x1) / 2, (zone.y0 + zone.y1) / 2, 0.06)
+  const over = load > zone.max_load
+  return (
+    <group>
+      <mesh rotation-x={-Math.PI / 2} position={c}>
+        <planeGeometry args={[zone.x1 - zone.x0, zone.y1 - zone.y0]} />
+        <meshBasicMaterial color={over ? '#ef4444' : '#f43f5e'} transparent opacity={over ? 0.35 : 0.13} />
+      </mesh>
+      <Html position={toV(zone.x0 + 4, zone.y1 - 4, 1)} className="pointer-events-none">
+        <div className={`label whitespace-nowrap ${over ? 'text-red-300' : 'text-rose-300'}`}>
+          ✚ {zone.name} · protected · load {load.toFixed(2)} / {zone.max_load.toFixed(2)}
+        </div>
+      </Html>
+    </group>
+  )
+}
+
+function BuildingBox({ b }: { b: Building }) {
+  const m = MATERIAL[b.material] ?? MATERIAL.concrete
+  const c = toV((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.height / 2)
+  return (
+    <group>
+      <mesh position={c} castShadow receiveShadow>
+        <boxGeometry args={[b.x1 - b.x0, b.height, b.y1 - b.y0]} />
+        <meshStandardMaterial color={m.color} transparent={m.opacity < 1} opacity={m.opacity}
+          roughness={b.material === 'glass' ? 0.1 : 0.85} metalness={b.material === 'glass' ? 0.4 : 0.05} />
+      </mesh>
+      <Html position={toV((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.height + 3)} center className="pointer-events-none">
+        <div className="label whitespace-nowrap text-slate-300">{b.name}</div>
+      </Html>
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------- network
+
+function TowerMast({ t }: { t: Tower }) {
+  const planned = useGame((s) => s.plannedTowers[t.id])
+  const changed = planned && (Math.abs(planned.power - t.power_dbm) > 0.01 || Math.abs(planned.tilt - t.tilt) > 0.01)
+  const base = toV(t.x, t.y)
+  const sector = useMemo(() => {
+    // the tower's coverage sector, drawn on the ground (boresight is degrees from east, counter-clockwise)
+    const g = new THREE.CircleGeometry(70, 32, THREE.MathUtils.degToRad(t.boresight - 60), THREE.MathUtils.degToRad(120))
+    g.rotateX(-Math.PI / 2)
+    return g
+  }, [t.boresight])
+  return (
+    <group position={base}>
+      <mesh geometry={sector} position={[0, 0.08, 0]}>
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.06} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, t.z / 2, 0]} castShadow>
+        <cylinderGeometry args={[0.6, 0.9, t.z, 10]} />
+        <meshStandardMaterial color="#cbd5e1" />
+      </mesh>
+      <mesh position={[0, t.z + 1, 0]}>
+        <boxGeometry args={[2.4, 2, 2.4]} />
+        <meshStandardMaterial color={changed ? '#fbbf24' : '#e2e8f0'} emissive={changed ? '#b45309' : '#0ea5e9'}
+          emissiveIntensity={0.6} />
+      </mesh>
+      <Html position={[0, t.z + 9, 0]} center className="pointer-events-none">
+        <div className="label whitespace-nowrap text-center">
+          <div className="font-semibold text-sky-200">📡 {t.name}</div>
+          <div className={changed ? 'text-amber-300' : 'text-slate-400'}>
+            {t.power_dbm.toFixed(0)} dBm · tilt {t.tilt.toFixed(0)}° · load {(t.load * 100).toFixed(0)}%
+          </div>
+        </div>
+      </Html>
+    </group>
+  )
+}
+
+/** One faint line from each phone to the tower serving it, coloured by its signal. */
+function Links({ phones, towers }: { phones: Phone[]; towers: Tower[] }) {
+  const geom = useMemo(() => {
+    const pos: number[] = []
+    const col: number[] = []
+    const c = new THREE.Color()
+    for (const p of phones) {
+      const t = towers[p.tower]
+      if (!t) continue
+      const a = toV(t.x, t.y, t.z + 1)
+      const b = toV(p.x, p.y, 1.4)
+      pos.push(a.x, a.y, a.z, b.x, b.y, b.z)
+      c.set(BAND_COLOR[p.band])
+      col.push(c.r, c.g, c.b, c.r, c.g, c.b)
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
+    return g
+  }, [phones, towers])
+  useEffect(() => () => geom.dispose(), [geom])
+  return (
+    <lineSegments geometry={geom}>
+      <lineBasicMaterial vertexColors transparent opacity={0.22} />
+    </lineSegments>
+  )
+}
+
+function Phones({ phones }: { phones: Phone[] }) {
+  const focus = useFocusedIncident()
+  const inFocus = useMemo(() => new Set(focus && !['resolved', 'false_alarm'].includes(focus.status) ? focus.phones : []),
+    [focus])
+  return (
+    <group>
+      {phones.map((p) => <PhoneDot key={p.id} p={p} focused={inFocus.has(p.id)} />)}
+    </group>
+  )
+}
+
+const dotGeom = new THREE.SphereGeometry(1.3, 14, 10)
+const ringGeom = new THREE.RingGeometry(2.2, 2.9, 24)
+
+function PhoneDot({ p, focused }: { p: Phone; focused: boolean }) {
+  const ring = useRef<THREE.Mesh>(null)
+  const [hover, setHover] = useState(false)
+  const pos = toV(p.x, p.y, 1.4)
+  const color = BAND_COLOR[p.band]
+  useFrame(({ clock }) => {
+    if (ring.current) {
+      const s = 1 + 0.35 * Math.sin(clock.elapsedTime * 5)
+      ring.current.scale.set(s, s, s)
+    }
+  })
+  return (
+    <group position={pos}>
+      <mesh geometry={dotGeom} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={p.band === 'good' ? 0.5 : 1.1} />
+      </mesh>
+      {focused && (
+        <mesh ref={ring} geometry={ringGeom} rotation-x={-Math.PI / 2} position={[0, -1.2, 0]}>
+          <meshBasicMaterial color="#fbbf24" transparent opacity={0.85} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {hover && (
+        <Html center position={[0, 5, 0]} className="pointer-events-none">
+          <div className="label whitespace-nowrap">
+            Phone {p.id} · {p.sinr.toFixed(0)} dB · {p.mbps.toFixed(1)}/{p.wants_mbps.toFixed(1)} Mbps · T{'ABC'[p.tower] ?? p.tower}
+          </div>
+        </Html>
+      )}
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------- problems on the street
+
+function BlockerBox({ b }: { b: Blocker }) {
+  const ref = useRef<THREE.Group>(null)
+  const target = toV((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2)
+  // glide between ticks so a driving bus moves smoothly instead of jumping 10 m a second
+  useFrame((_, dt) => {
+    if (ref.current) ref.current.position.lerp(target, Math.min(1, dt * 3))
+  })
+  const color = BLOCKER_COLOR[b.kind] ?? '#f87171'
+  return (
+    <group ref={ref} position={target}>
+      <mesh position={[0, b.height / 2, 0]} castShadow>
+        <boxGeometry args={[b.x1 - b.x0, b.height, b.y1 - b.y0]} />
+        <meshStandardMaterial color={color} transparent={b.hidden} opacity={b.hidden ? 0.45 : 1}
+          emissive={color} emissiveIntensity={0.15} />
+      </mesh>
+      <Html position={[0, b.height + 3, 0]} center className="pointer-events-none">
+        <div className="label whitespace-nowrap font-semibold" style={{ color }}>
+          {b.kind === 'bus' ? '🚌' : b.kind === 'truck' ? '🚚' : b.kind === 'car' ? '🚗' : b.kind === 'crowd' ? '👥' : '⬛'}{' '}
+          {b.kind}{b.hidden ? ' (twin can’t see)' : ''}
+        </div>
+      </Html>
+    </group>
+  )
+}
+
+function Booster({ x, y }: { x: number; y: number }) {
+  const ref = useRef<THREE.Mesh>(null)
+  useFrame(({ clock }) => {
+    if (ref.current) {
+      const s = 1 + ((clock.elapsedTime * 0.8) % 1) * 5
+      ref.current.scale.set(s, s, s)
+      ;(ref.current.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - ((clock.elapsedTime * 0.8) % 1))
+    }
+  })
+  return (
+    <group position={toV(x, y, 0.3)}>
+      <mesh ref={ref} rotation-x={-Math.PI / 2}>
+        <ringGeometry args={[3, 3.6, 32]} />
+        <meshBasicMaterial color="#f43f5e" transparent opacity={0.6} />
+      </mesh>
+      <mesh position={[0, 2, 0]}>
+        <boxGeometry args={[2, 4, 2]} />
+        <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={0.6} />
+      </mesh>
+      <Html position={[0, 7, 0]} center className="pointer-events-none">
+        <div className="label whitespace-nowrap text-rose-300">📶 illegal booster</div>
+      </Html>
+    </group>
+  )
+}
