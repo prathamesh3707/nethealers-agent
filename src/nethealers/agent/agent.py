@@ -303,13 +303,15 @@ class Agent:
                 hyp.append(f"unexplained interference at {extra} phone(s)")
             self._say("rehearse", "twin", "Twin calibrated from earlier phone reports"
                       + (f"; it now assumes {' and '.join(hyp)}." if hyp else "."), inc, notes_json(notes))
+            tried = {a: i + 1 for i, a in enumerate(acts)}  # the order the twin tried them in
             preds = rehearse(twin, acts, targets, w.zones)
             if preds:
                 b = preds[0]
                 self._say("rehearse", "planner",
                           f"Rehearsed {len(preds)} fixes on the twin. Best: {b.text} "
                           f"({b.gain_db:+.1f} dB for these phones, {b.harmed} other phone(s) worse).", inc,
-                          {"ranked": [_pred_dict(p) for p in preds[:30]], "tested": len(preds)})
+                          {"ranked": [_pred_dict(p, tried.get(p.action)) for p in preds[:40]], "tested": len(preds),
+                           "cause": inc.cause})
         else:
             preds = [Prediction(a, describe(w, a), float("nan"), 0.0, float("nan"), 0, 0.0) for a in acts]
 
@@ -702,8 +704,8 @@ def _phones_moved(w: World, a: Action, phones: list[int]) -> bool:
     return True
 
 
-def _pred_dict(p: Prediction) -> dict:
-    return {"action": p.text, "gain_db": round(p.gain_db, 1), "harmed": p.harmed, "data_gain": round(p.sat_gain, 2),
+def _pred_dict(p: Prediction, tried: int | None = None) -> dict:
+    return {"action": p.text, "tried": tried, "gain_db": round(p.gain_db, 1), "harmed": p.harmed, "data_gain": round(p.sat_gain, 2),
             "zone_loads": {k: round(v, 2) for k, v in p.zone_loads.items()}, "score": round(p.score, 1)}
 
 
