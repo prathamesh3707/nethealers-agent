@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-fade-in: fade-in 0.5s ease-out;
+  --animate-pulse-slow: pulse-slow 2s ease-in-out infinite;
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pulse-slow {
+    0%, 100% { box-shadow: 0 0 0 0 rgb(251 191 36 / 0.45); }
+    50% { box-shadow: 0 0 0 6px rgb(251 191 36 / 0); }
+  }
+}
+
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body, #root { height: 100%; margin: 0; background: #020617; }
+
+@layer components {
+  .btn {
+    @apply rounded-md px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40;
+  }
+  .btn-icon {
+    @apply grid h-8 w-8 place-items-center rounded-md border border-slate-700 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-30;
+  }
+  .chip {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium;
+  }
+  .label {
+    @apply rounded bg-slate-950/75 px-1.5 py-0.5 text-[10px] leading-tight select-none;
+  }
+  .dot {
+    @apply mr-1 inline-block h-2 w-2 rounded-full align-middle;
+  }
+}

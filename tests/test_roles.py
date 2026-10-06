@@ -124,3 +124,34 @@ def test_decision_log_in_postgres():
     ag._say("note", "monitor", "hello from the test")
     rows = sink.read()
     assert rows and rows[-1]["text"] == "hello from the test"
+
+
+@needs_model
+def test_planner_escalating_after_a_kept_fix_still_looks_after_that_fix():
+    from nethealers.diagnosis import Diagnoser
+    from nethealers.sim import clear_problem
+
+    # first fix: planner picks option 1, adviser agrees; afterwards the planner always hands over
+    llm = FakeLLM([{"choice": 1, "reason": "best"}, {"decision": "agree", "reason": "ok"}]
+                  + [{"choice": "escalate", "reason": "let a person decide"}] * 20)
+    w = station_road()  # with the hospital zone, as in the game: only a partial handover is safe
+    w.missing_relations = {(0, 1), (0, 2)}
+    ag = Agent(w, diagnoser=Diagnoser.load(), roles=Roles(llm=llm, library=None), log=EventLog())
+    for _ in range(8):
+        w.step()
+        ag.on_tick()
+    bus = add_blocker(w, "bus", *BUS_POSITION)
+    for _ in range(10):
+        w.step()
+        ag.on_tick()
+    inc = ag.incidents["INC-001"]
+    assert inc.kept, "the first fix should have been kept"
+    assert inc.status != "escalated", "a handover must not abandon fixes already in place"
+    left = w.tick
+    clear_problem(w, bus.id)
+    for _ in range(10):
+        w.step()
+        ag.on_tick()
+    # the applied handover is still looked after: withdrawn, or undone by the hospital-zone guard
+    assert any(e.stage in ("withdraw", "undo") and e.incident == "INC-001" and e.tick > left for e in ag.log.events)
+    assert not any(u.forced_tower is not None for u in w.ues)

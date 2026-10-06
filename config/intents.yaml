@@ -12,11 +12,13 @@
 - id: harm-none
   text: >-
     Do not trade one group's service for another's. A fix that helps some phones but makes
-    several others clearly worse is not acceptable.
+    several (three or more) others clearly worse is not acceptable; one or two slightly worse,
+    within the hard limits, is acceptable when it helps many.
 - id: humans-decide-big
   text: >-
-    Large power or tilt changes, and anything the evidence is unsure about, go to a person
-    for approval with a short explanation and the evidence.
+    Large power or tilt changes, and anything the evidence is unsure about, need a person's
+    approval. The system asks the person automatically for options marked as needing approval,
+    so such an option can still be chosen; explain it clearly for the person.
 - id: privacy
   text: >-
     Use only signal measurements and rough positions. Never use call or message content,

@@ -63,6 +63,11 @@ def test_bad_requests_are_explained(client):
     assert client.get("/sessions/nope/state").status_code == 404
     client.post(f"/sessions/{sid}/control", json={"action": "resume"})
     assert client.post(f"/sessions/{sid}/control", json={"action": "step"}).status_code == 400
+    # missing position, unknown tower, answering an incident that isn't waiting
+    assert client.post(f"/sessions/{sid}/problems", json={"kind": "bus"}).status_code == 400
+    assert client.post(f"/sessions/{sid}/problems", json={"kind": "misconfig", "tower": 9}).status_code == 400
+    assert client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": 5000, "y": 1}).status_code == 400
+    assert client.post(f"/sessions/{sid}/answer", json={"incident": "INC-999", "decision": "approve"}).status_code == 409
 
 
 def test_live_stream_sends_frames(client):
@@ -73,3 +78,70 @@ def test_live_stream_sends_frames(client):
         step(client, sid)
         nxt = ws.receive_json()
         assert nxt["tick"] == first["tick"] + 1
+
+
+def test_a_driven_bus_arrives_stops_and_leaves(client):
+    sid = start(client)["id"]
+    x, y = BUS_POSITION
+    p = client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": x, "y": y, "drive": True, "stay": 3}).json()
+    xs = []
+    for _ in range(12):
+        f = step(client, sid)
+        bus = [b for b in f["blockers"] if b["id"] == p["id"]]
+        xs.append((bus[0]["x0"] + bus[0]["x1"]) / 2 if bus else None)
+    seen = [v for v in xs if v is not None]
+    assert seen[0] < x - 5  # starts up the road
+    assert any(abs(v - x) < 0.5 for v in seen)  # stops at the given spot
+    assert seen[-1] > x + 5 or xs[-1] is None  # drives off
+    assert xs[-1] is None and p["id"] not in {q["id"] for q in f["problems"]}
+
+
+def test_frames_carry_timings_and_stages(client):
+    sid = start(client)["id"]
+    client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": BUS_POSITION[0], "y": BUS_POSITION[1]})
+    frames = [step(client, sid) for _ in range(6)]
+    f = frames[-1]
+    assert f["timing"]["tick_ms"] > 0 and "agent_ms" in f["timing"]
+    inc = f["incidents"][0]
+    assert inc["stage"] in {"detect", "diagnose", "rehearse", "check", "plan", "review", "act", "verify", "undo",
+                            "escalate", "approve", "withdraw", "resolve", "note"}
+    assert all("ms" in e for fr in frames for e in fr["events"])
+    timeline = client.get(f"/sessions/{sid}/incidents/{inc['id']}").json()["events"]
+    assert timeline and timeline[0]["stage"] == "detect"
+
+
+def test_shadow_street_shows_what_happens_without_the_agent(client):
+    sid = start(client)["id"]
+    p = client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": BUS_POSITION[0], "y": BUS_POSITION[1]}).json()
+    first = step(client, sid)
+    assert first["without_agent"]["degraded_now"] >= 1  # the bus hurts the shadow street too
+    s = SESSIONS[sid]
+    assert p["id"] in s.shadow_ids and s.shadow_ids[p["id"]] in s.shadow.problems
+    r = client.post(f"/sessions/{sid}/problems/{p['id']}/move", json={"x": BUS_POSITION[0] - 30, "y": BUS_POSITION[1]})
+    assert r.status_code == 200
+    assert s.shadow.box(s.shadow_ids[p["id"]]).center[0] == pytest.approx(BUS_POSITION[0] - 30, abs=0.01)
+    frames = [step(client, sid) for _ in range(10)]
+    f = frames[-1]
+    assert f["score"]["degraded_now"] <= f["without_agent"]["degraded_now"]
+    client.delete(f"/sessions/{sid}/problems/{p['id']}")
+    assert not s.shadow.problems
+
+
+@pytest.mark.parametrize("problem", [
+    {"kind": "misconfig", "tower": 0},
+    {"kind": "misconfig", "tower": 2},
+    {"kind": "bus", "x": BUS_POSITION[0], "y": BUS_POSITION[1]},
+    {"kind": "stuck_beam", "x": 233, "y": 115},
+])
+def test_after_a_problem_is_removed_nothing_stays_stuck(client, problem):
+    sid = start(client)["id"]
+    p = client.post(f"/sessions/{sid}/problems", json=problem).json()
+    step(client, sid, 20)
+    client.delete(f"/sessions/{sid}/problems/{p['id']}")
+    f = step(client, sid, 60)
+    still_open = [i for i in f["incidents"] if i["status"] not in ("resolved", "false_alarm")]
+    assert not still_open, still_open
+    # the agent never leaves the street worse than it would be without it
+    assert f["score"]["degraded_now"] <= f["without_agent"]["degraded_now"]
+    s = SESSIONS[sid]
+    assert all(abs(t.power_dbm - 33.0) <= 3 for t in s.world.towers)

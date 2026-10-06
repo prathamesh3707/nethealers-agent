@@ -194,6 +194,27 @@ def test_every_fix_undoes_exactly(action):
     assert np.allclose(ref.step().true_sinr_db, test.step().true_sinr_db)
 
 
+def test_undoing_one_fix_keeps_a_later_fix_on_the_same_tower():
+    w = station_road()
+    first = apply_action(w, PowerChange(0, 2.0))
+    apply_action(w, PowerChange(0, 1.0))
+    undo_action(w, first)  # the second change (+1 dB) must survive
+    assert w.towers[0].power_dbm == pytest.approx(station_road().towers[0].power_dbm + 1.0)
+    a = apply_action(w, LoadRebalance(0, 1, 3.0))
+    apply_action(w, LoadRebalance(0, 1, 2.0))
+    undo_action(w, a)
+    assert w.cio[(0, 1)] == pytest.approx(2.0) and w.cio[(1, 0)] == pytest.approx(-2.0)
+
+
+def test_a_fix_for_phones_that_left_is_refused_cleanly():
+    w = station_road()
+    w.run(2)
+    with pytest.raises(ActionError):
+        apply_action(w, Handover((0, 9999), 1))
+    with pytest.raises(ActionError):
+        apply_action(w, BeamOverride(w.ue(0).serving, (0, 9999), 2))
+
+
 def test_physical_limits_are_enforced():
     w = station_road()
     with pytest.raises(ActionError):
@@ -230,3 +251,12 @@ def test_same_seed_same_results():
     a = station_road(seed=5).run(3)
     b = station_road(seed=5).run(3)
     assert np.allclose(a.sinr_db, b.sinr_db) and np.allclose(a.true_sinr_db, b.true_sinr_db)
+
+
+def test_fixing_a_misconfigured_tower_restores_its_settings_even_after_compensation():
+    w = station_road()
+    before = (w.towers[2].power_dbm, w.towers[2].tilt_deg)
+    p = misconfigure_tower(w, 2, 6.0, -7.0)
+    apply_action(w, TiltChange(2, 7.0))  # someone compensated in the meantime
+    clear_problem(w, p.id)
+    assert (w.towers[2].power_dbm, w.towers[2].tilt_deg) == before  # back to plan, not plan + 7 degrees

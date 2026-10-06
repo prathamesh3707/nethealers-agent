@@ -48,6 +48,7 @@ class Prediction:
     zone_loads: dict = field(default_factory=dict)  # protected zone -> predicted load of its tower
     tower_loads: list = field(default_factory=list)
     score: float = 0.0
+    zone_loads_if_nothing: dict = field(default_factory=dict)  # protected zone -> its tower's load with no change
 
 
 def _main_tower(df: pd.DataFrame, phones: list[int]) -> int:
@@ -181,7 +182,8 @@ def rehearse(twin: World, actions: list[Action], targets: list[int], zones=(), t
         harmed = int(((d_other <= -3) | (d_other_sat <= -0.1)).sum())
         zone_loads = {z.name: float(c.last.load[z.tower]) for z in zones}
         p = Prediction(a, describe(twin, a), gain, sat_gain, float(np.median(df.loc[tg, "sinr_db"])), harmed,
-                       float(np.median(d_other)) if len(others) else 0.0, zone_loads, c.last.load.round(2).tolist())
+                       float(np.median(d_other)) if len(others) else 0.0, zone_loads, c.last.load.round(2).tolist(),
+                       zone_loads_if_nothing={z.name: float(ref.last.load[z.tower]) for z in zones})
         p.score = p.gain_db + 15 * p.sat_gain - 3 * p.harmed + min(0.0, 2 * p.other_median_db)
         out.append(p)
     return sorted(out, key=lambda p: -p.score)

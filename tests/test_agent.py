@@ -59,6 +59,15 @@ def test_rules_protect_the_hospital_zone(world):
     assert v.status == "rejected" and any("Hospital zone" in r for r in v.reasons)
     v = rc.check(move, world, 10, pred=pred(move, zone={"Hospital zone": 0.40}), confidence=0.95)
     assert v.status == "approved"
+    # Already over the limit (a crowd on the hospital's tower): a change that takes load off it is not blocked,
+    # judged against the twin's own "do nothing" load rather than the measured one.
+    relief = pred(PowerChange(0, 1.0), zone={"Hospital zone": 3.1})
+    relief.zone_loads_if_nothing = {"Hospital zone": 3.5}
+    v = rc.check(relief.action, world, 10, pred=relief, confidence=0.95)
+    assert not any("Hospital zone" in r for r in v.reasons)
+    worse = pred(PowerChange(0, 1.0), zone={"Hospital zone": 3.6})
+    worse.zone_loads_if_nothing = {"Hospital zone": 3.5}
+    assert any("Hospital zone" in r for r in rc.check(worse.action, world, 10, pred=worse).reasons)
 
 
 def test_rules_cooldown_and_harm(world):
@@ -145,7 +154,7 @@ def test_wrong_beam_is_fixed_quickly():
 def test_faulty_controls_are_detected_and_escalated():
     from nethealers.eval.runner import run_one
 
-    r = run_one("6_bad_data", "agent", 1)
+    r = run_one("6_bad_data", "agent", 0)  # a seed where the agent needs the tower whose controls are broken
     texts = " ".join(e["text"] for e in r["events"])
     assert "did not accept the change" in texts
     assert "out-of-date" in texts
@@ -159,3 +168,28 @@ def test_twin_mismatch_is_caught_and_undone():
     r = run_one("4_twin_mismatch", "agent", 1)
     assert r["undos"] >= 1
     assert r["degraded_phone_seconds"] < 0.6 * run_one("4_twin_mismatch", "standard", 1)["degraded_phone_seconds"]
+
+
+@needs_model
+def test_a_withdrawn_fix_is_no_longer_counted_as_an_active_change():
+    from nethealers.diagnosis import Diagnoser
+    from nethealers.sim import clear_problem
+
+    w = station_road()
+    w.missing_relations = {(0, 1), (0, 2)}
+    w.zones = []
+    ag = Agent(w, diagnoser=Diagnoser.load(), policy=Policy.load())
+    w.run(8)
+    for _ in range(8):
+        w.step()
+        ag.on_tick()
+    bus = add_blocker(w, "bus", *BUS_POSITION)
+    for _ in range(12):
+        w.step()
+        ag.on_tick()
+    clear_problem(w, bus.id)
+    for _ in range(15):
+        w.step()
+        ag.on_tick()
+    if any(e.stage == "withdraw" for e in ag.log.events):
+        assert not ag._active_changes()  # tidy-up must never undo a withdrawn fix a second time

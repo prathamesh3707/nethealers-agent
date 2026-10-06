@@ -101,6 +101,7 @@ def apply_action(world: World, a: Action) -> Applied:
         if not 0 <= a.beam < world.panel.n_beams:
             raise ActionError(f"beam {a.beam} doesn't exist")
         idx = world.ue_index()
+        _require_phones(world, a.ues, idx)
         for uid in a.ues:
             u = world.ues[idx[uid]]
             if u.serving != a.tower:
@@ -113,6 +114,7 @@ def apply_action(world: World, a: Action) -> Applied:
         if not 0 <= a.target < len(world.towers):
             raise ActionError(f"tower {a.target} doesn't exist")
         idx = world.ue_index()
+        _require_phones(world, a.ues, idx)
         for uid in a.ues:
             u = world.ues[idx[uid]]
             rec.undo[uid] = (u.serving, u.beam, u.beam_lock, u.lock_reason, u.forced_tower)
@@ -122,14 +124,14 @@ def apply_action(world: World, a: Action) -> Applied:
         new = t.power_dbm + a.delta_db
         if not t.min_power_dbm - 1e-9 <= new <= t.max_power_dbm + 1e-9:
             raise ActionError(f"{t.name} power {new:g} dBm is outside {t.min_power_dbm:g}-{t.max_power_dbm:g} dBm")
-        rec.undo["power"] = t.power_dbm
+        rec.undo["power"] = new - t.power_dbm
         t.power_dbm = new
     elif isinstance(a, TiltChange):
         t = world.towers[a.tower]
         new = t.tilt_deg + a.delta_deg
         if not t.min_tilt_deg - 1e-9 <= new <= t.max_tilt_deg + 1e-9:
             raise ActionError(f"{t.name} tilt {new:g} degrees is outside {t.min_tilt_deg:g}-{t.max_tilt_deg:g}")
-        rec.undo["tilt"] = t.tilt_deg
+        rec.undo["tilt"] = new - t.tilt_deg
         t.tilt_deg = new
     elif isinstance(a, LoadRebalance):
         if a.source == a.target:
@@ -137,7 +139,7 @@ def apply_action(world: World, a: Action) -> Applied:
         fwd = world.cio.get((a.source, a.target), 0.0) + a.offset_db
         if abs(fwd) > 10:
             raise ActionError("handover bias can't exceed 10 dB")
-        rec.undo["cio"] = (world.cio.get((a.source, a.target), 0.0), world.cio.get((a.target, a.source), 0.0))
+        rec.undo["cio"] = a.offset_db
         world.cio[(a.source, a.target)] = fwd
         world.cio[(a.target, a.source)] = world.cio.get((a.target, a.source), 0.0) - a.offset_db
     else:
@@ -145,7 +147,15 @@ def apply_action(world: World, a: Action) -> Applied:
     return rec
 
 
+def _require_phones(world: World, ues, idx) -> None:
+    gone = [u for u in ues if u not in idx]
+    if gone:
+        raise ActionError(f"phone(s) {gone[:5]} are no longer on the street")
+
+
 def undo_action(world: World, rec: Applied) -> None:
+    """Reverse a fix. Tower settings are undone by subtracting the change that was made, not by
+    restoring old values, so undoing one incident's fix never wipes another incident's later change."""
     a = rec.action
     if rec.undo.get("frozen"):
         return
@@ -162,10 +172,12 @@ def undo_action(world: World, rec: Applied) -> None:
                 u = world.ues[idx[uid]]
                 u.serving, u.beam, u.beam_lock, u.lock_reason, u.forced_tower = serving, beam, lock, reason, forced
     elif isinstance(a, PowerChange):
-        world.towers[a.tower].power_dbm = rec.undo["power"]
+        t = world.towers[a.tower]
+        t.power_dbm = min(max(t.power_dbm - rec.undo["power"], t.min_power_dbm), t.max_power_dbm)
     elif isinstance(a, TiltChange):
-        world.towers[a.tower].tilt_deg = rec.undo["tilt"]
+        t = world.towers[a.tower]
+        t.tilt_deg = min(max(t.tilt_deg - rec.undo["tilt"], t.min_tilt_deg), t.max_tilt_deg)
     elif isinstance(a, LoadRebalance):
-        fwd, back = rec.undo["cio"]
-        world.cio[(a.source, a.target)] = fwd
-        world.cio[(a.target, a.source)] = back
+        d = rec.undo["cio"]
+        world.cio[(a.source, a.target)] = world.cio.get((a.source, a.target), 0.0) - d
+        world.cio[(a.target, a.source)] = world.cio.get((a.target, a.source), 0.0) + d

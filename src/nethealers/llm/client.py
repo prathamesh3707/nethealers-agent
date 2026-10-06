@@ -52,6 +52,8 @@ def providers_from_env() -> list[Provider]:
         "openrouter": Provider("openrouter", "https://openrouter.ai/api/v1", env.get("OPENROUTER_API_KEY", ""),
                                tuple(m.strip() for m in env.get("OPENROUTER_MODELS", DEFAULT_OPENROUTER_MODELS)
                                      .split(",") if m.strip())),
+        "openai": Provider("openai", "https://api.openai.com/v1", env.get("OPENAI_API_KEY", ""),
+                           (env.get("OPENAI_MODEL", "") or "gpt-4.1-mini",)),
         "groq": Provider("groq", "https://api.groq.com/openai/v1", env.get("GROQ_API_KEY", ""),
                          tuple(filter(None, [env.get("GROQ_MODEL", "")]))),
         "gemini": Provider("gemini", "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -88,6 +90,8 @@ class LLM:
     tokens_in: int = 0
     tokens_out: int = 0
     failures: list = field(default_factory=list)
+    down_for_s: float = 60.0  # after a provider fails, skip it for this long instead of waiting on it again
+    _down_until: dict = field(default_factory=dict)
 
     @property
     def ready(self) -> list[str]:
@@ -102,10 +106,14 @@ class LLM:
         for p in self.providers:
             if not p.configured:
                 continue
+            if time.monotonic() < self._down_until.get(p.name, 0.0):
+                errors.append(f"{p.name}: skipped (failed recently)")
+                continue
             try:
                 ans = self._ask(p, system, user)
-            except Exception as e:  # any provider error: note it and try the next one
+            except Exception as e:  # any provider error: note it, rest it for a while, try the next one
                 errors.append(f"{p.name}: {type(e).__name__}: {str(e)[:160]}")
+                self._down_until[p.name] = time.monotonic() + self.down_for_s
                 continue
             self.calls += 1
             self.tokens_in += ans.tokens_in
