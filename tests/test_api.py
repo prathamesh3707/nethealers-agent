@@ -63,6 +63,11 @@ def test_bad_requests_are_explained(client):
     assert client.get("/sessions/nope/state").status_code == 404
     client.post(f"/sessions/{sid}/control", json={"action": "resume"})
     assert client.post(f"/sessions/{sid}/control", json={"action": "step"}).status_code == 400
+    # missing position, unknown tower, answering an incident that isn't waiting
+    assert client.post(f"/sessions/{sid}/problems", json={"kind": "bus"}).status_code == 400
+    assert client.post(f"/sessions/{sid}/problems", json={"kind": "misconfig", "tower": 9}).status_code == 400
+    assert client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": 5000, "y": 1}).status_code == 400
+    assert client.post(f"/sessions/{sid}/answer", json={"incident": "INC-999", "decision": "approve"}).status_code == 409
 
 
 def test_live_stream_sends_frames(client):
@@ -73,3 +78,33 @@ def test_live_stream_sends_frames(client):
         step(client, sid)
         nxt = ws.receive_json()
         assert nxt["tick"] == first["tick"] + 1
+
+
+def test_a_driven_bus_arrives_stops_and_leaves(client):
+    sid = start(client)["id"]
+    x, y = BUS_POSITION
+    p = client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": x, "y": y, "drive": True, "stay": 3}).json()
+    xs = []
+    for _ in range(12):
+        f = step(client, sid)
+        bus = [b for b in f["blockers"] if b["id"] == p["id"]]
+        xs.append((bus[0]["x0"] + bus[0]["x1"]) / 2 if bus else None)
+    seen = [v for v in xs if v is not None]
+    assert seen[0] < x - 5  # starts up the road
+    assert any(abs(v - x) < 0.5 for v in seen)  # stops at the given spot
+    assert seen[-1] > x + 5 or xs[-1] is None  # drives off
+    assert xs[-1] is None and p["id"] not in {q["id"] for q in f["problems"]}
+
+
+def test_frames_carry_timings_and_stages(client):
+    sid = start(client)["id"]
+    client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": BUS_POSITION[0], "y": BUS_POSITION[1]})
+    frames = [step(client, sid) for _ in range(6)]
+    f = frames[-1]
+    assert f["timing"]["tick_ms"] > 0 and "agent_ms" in f["timing"]
+    inc = f["incidents"][0]
+    assert inc["stage"] in {"detect", "diagnose", "rehearse", "check", "plan", "review", "act", "verify", "undo",
+                            "escalate", "approve", "withdraw", "resolve", "note"}
+    assert all("ms" in e for fr in frames for e in fr["events"])
+    timeline = client.get(f"/sessions/{sid}/incidents/{inc['id']}").json()["events"]
+    assert timeline and timeline[0]["stage"] == "detect"

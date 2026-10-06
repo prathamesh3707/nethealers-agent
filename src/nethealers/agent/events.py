@@ -19,6 +19,7 @@ class Event:
     text: str  # plain-language sentence for people
     incident: str | None = None
     data: dict = field(default_factory=dict)
+    ms: float = 0.0  # time the agent spent producing this step
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -40,8 +41,11 @@ class EventLog:
         if self.path:
             with self.path.open("a") as f:
                 f.write(json.dumps(e.to_dict(), default=_jsonable) + "\n")
-        for sink in self.sinks:
-            sink.write(e)
+        for sink in list(self.sinks):
+            try:
+                sink.write(e)
+            except Exception:  # a lost database connection must not stop the agent; keep logging in memory
+                self.sinks.remove(sink)
         return e
 
     def for_incident(self, incident: str) -> list[Event]:

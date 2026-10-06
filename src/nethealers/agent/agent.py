@@ -116,12 +116,23 @@ class Agent:
         self.faulty_towers: set[int] = set()
         self._next = 1
         self._stale_noted = -100
+        self._t_mark = time.perf_counter()
+        self.last_tick_ms = 0.0  # how long the agent's turn took on the latest tick
 
     # ------------------------------------------------------------------ main entry
 
     def on_tick(self) -> list[Event]:
         w = self.world
         start = len(self.log.events)
+        t_start = self._t_mark = time.perf_counter()
+        try:
+            self._turn()
+        finally:
+            self.last_tick_ms = (time.perf_counter() - t_start) * 1000
+        return self.log.events[start:]
+
+    def _turn(self) -> None:
+        w = self.world
         for inc in self.incidents.values():
             inc.phones = [p for p in inc.phones if p in w.ue_index()]
         busy = {p for i in self.incidents.values() if i.status in ACTIVE for p in i.phones}
@@ -161,7 +172,6 @@ class Agent:
                 self._finish_withdrawal(inc)
             elif inc.status == "escalated":
                 self._watch_escalated(inc)
-        return self.log.events[start:]
 
     # ------------------------------------------------------------------ incident lifecycle
 
@@ -476,6 +486,22 @@ class Agent:
         inc.pending = None
         if answer == "approve":
             self._say("approve", "operator", f"Operator approved: {p.text}.", inc)
+            # Things may have changed while the request waited (cooldowns, other fixes, zone holds):
+            # the rule-checker looks again before anything is sent.
+            w = self.world
+            df = self.monitor.latest().set_index("ue")
+            targets = [u for u in (inc.focus or inc.phones) if u in df.index]
+            stale = float((df.loc[targets].report_age > self.policy.max_report_age).mean()) if targets else 0.0
+            again = self.rules.check(p.action, w, w.tick, pred=p if self.mode == "twin" else None,
+                                     confidence=inc.confidence if self.diagnoser else 1.0,
+                                     twin_error_db=self.trust.get(inc.main_tower), stale_share=stale)
+            if again.status == "rejected":
+                inc.failed.append(p.action)
+                self._say("check", "safety", f"Re-checked after approval and stopped it: {p.text}, because "
+                                             f"{'; '.join(again.reasons)}.", inc,
+                          {"action": p.text, "reasons": again.reasons})
+                inc.status = "new"
+                return self._plan(inc)
             self._act(inc, p)
         else:
             inc.failed.append(p.action)
@@ -566,7 +592,11 @@ class Agent:
     # ------------------------------------------------------------------ helpers
 
     def _say(self, stage: str, agent: str, text: str, inc: Incident | None = None, data: dict | None = None):
-        return self.log.add(Event(self.world.tick, stage, agent, text, inc.id if inc else None, data or {}))
+        """Log a step. `ms` is the time spent since the previous step this tick: the work behind this one."""
+        now = time.perf_counter()
+        ms, self._t_mark = (now - self._t_mark) * 1000, now
+        return self.log.add(Event(self.world.tick, stage, agent, text, inc.id if inc else None, data or {},
+                                  round(ms, 1)))
 
     def _evidence(self, inc: Incident) -> str:
         w = self.world

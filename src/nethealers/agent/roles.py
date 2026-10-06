@@ -110,7 +110,7 @@ class Roles:
         if isinstance(choice, str) and choice.strip().lower() == "escalate":
             return RoleOutput(False, None, reason or "The planner asked for a person to decide.", source=ans.source)
         try:
-            idx = int(choice) - 1
+            idx = -1 if isinstance(choice, bool) else int(choice) - 1
         except (TypeError, ValueError):
             idx = -1
         if not 0 <= idx < len(options):  # invalid answer: don't trust it
@@ -147,7 +147,10 @@ class Roles:
         except (LLMUnavailable, ValueError) as e:
             return RoleOutput(True, reason="It passed every hard rule.",
                               source=f"offline rules (language model unavailable: {str(e)[:80]})")
-        decision = str(ans.data.get("decision", "agree")).strip().lower()
+        decision = str(ans.data.get("decision", "")).strip().lower()
+        if decision not in ("agree", "object"):  # unclear answer: fall back to the hard rules, and say so
+            return RoleOutput(True, reason="It passed every hard rule.",
+                              source=f"offline rules (the safety adviser's answer was unclear: {decision!r})")
         known = {h.id: h for h in hits}
         cites = [known[c].cite() for c in ans.data.get("citations", []) if isinstance(c, str) and c in known]
         return RoleOutput(decision != "object", reason=str(ans.data.get("reason", "")).strip(), citations=cites,
