@@ -169,22 +169,30 @@ function TwinTest({ events }: { events: AgentEvent[] }) {
   const tried = rehearse.text.match(/Rehearsed (\d+)/)?.[1]
   return (
     <Box tour="twin">
-      <Kicker>Tested on the digital twin</Kicker>
+      <Kicker>Tested on the digital twin · ranked best first</Kicker>
       <p className="mb-3 text-sm text-slate-400">
-        {tried ? `${tried} fixes` : 'Several fixes'} were tried on a virtual copy of the street first. Top 3:
+        {tried ? `${tried} fixes` : 'Several fixes'} were tried on a virtual copy of the street first, then ranked by
+        predicted improvement (#1 = best). The agent goes down the list and takes the first one that passes the safety check.
       </p>
       <ul className="space-y-1.5">
-        {ranked.map((r) => {
+        {ranked.map((r, i) => {
           const why = ruledOut.get(r.action)
           const picked = r.action === chosen && !why
           return (
             <li key={r.action} className={`rounded-lg px-3 py-2 text-sm ${picked ? 'bg-emerald-500/15 text-emerald-100 ring-1 ring-emerald-500/60'
               : why ? 'bg-slate-950/50 text-slate-500' : 'bg-slate-950/50 text-slate-300'}`}>
               <div className="flex items-center justify-between gap-2">
-                <span>{picked ? '✔ ' : why ? '✕ ' : '· '}{plainAction(r.action)}</span>
+                <span className="flex items-start gap-2">
+                  <span className={`mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold
+                    ${picked ? 'bg-emerald-500 text-emerald-950' : why ? 'bg-slate-800 text-slate-500' : 'bg-slate-700 text-slate-200'}`}>
+                    {i + 1}
+                  </span>
+                  <span>{picked ? '✔ ' : why ? '✕ ' : ''}{plainAction(r.action)}</span>
+                </span>
                 <span className="shrink-0 text-xs">{r.gain_db >= 0 ? '+' : ''}{r.gain_db.toFixed(0)} dB</span>
               </div>
-              {why && <div className="mt-0.5 text-xs text-amber-300/80">Blocked by safety check: {shortReason(why)}</div>}
+              {why && <div className="mt-0.5 pl-7 text-xs text-amber-300/80">Blocked by safety check: {shortReason(why)}</div>}
+              {picked && <div className="mt-0.5 pl-7 text-xs text-emerald-300/80">Chosen: the highest-ranked fix that passed every safety check</div>}
             </li>
           )
         })}
