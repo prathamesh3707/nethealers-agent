@@ -1,5 +1,59 @@
-import type { NewProblem } from '../api'
-import { useGame, type Tool } from '../store'
+import type { NewProblem, Problem } from '../api'
+import { BOX_KINDS, useGame, type Tool } from '../store'
+
+const KIND_ICON: Record<string, string> = {
+  bus: '🚌', truck: '🚚', car: '🚗', crowd: '👥', kiosk: '🏪', hoarding: '🪧', stuck_beam: '🔦',
+  neighbour_misconfig: '📡', external_interferer: '📶', crowd_surge: '🏟️',
+}
+const KIND_NAME: Record<string, string> = {
+  stuck_beam: 'Misaimed beams', neighbour_misconfig: 'Bad tower settings', external_interferer: 'Illegal booster',
+  crowd_surge: 'Crowd surge',
+}
+
+/** One problem on the street, with controls: move blockers along the road, send vehicles away, remove. */
+function ProblemChip({ p }: { p: Problem }) {
+  const movable = useGame((s) => s.movable)
+  const setMovable = useGame((s) => s.setMovable)
+  const nudge = useGame((s) => s.nudge)
+  const removeProblem = useGame((s) => s.removeProblem)
+  const sendAway = useGame((s) => s.sendAway)
+  const canMove = BOX_KINDS.has(p.kind) && p.x != null
+  const selected = canMove && movable === p.id
+  const move = (dx: number) => { setMovable(p.id); void nudge(dx) }
+  const name = KIND_NAME[p.kind] ?? p.kind[0].toUpperCase() + p.kind.slice(1)
+  return (
+    <div onClick={() => canMove && setMovable(p.id)}
+      className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs backdrop-blur
+        ${selected ? 'border-amber-400 bg-amber-950/80 text-amber-100' : 'border-slate-700 bg-slate-900/90 text-slate-200'}`}>
+      <span className="text-sm">{KIND_ICON[p.kind] ?? '⚠'}</span>
+      <span className="mr-1 font-medium">{name}{p.moving ? ' · driving' : ''}</span>
+      {canMove && (
+        <>
+          <MoveBtn label="◀◀" title="Back 20 m" onClick={() => move(-20)} />
+          <MoveBtn label="◀" title="Back 5 m (← key)" onClick={() => move(-5)} />
+          <MoveBtn label="▶" title="Forward 5 m (→ key)" onClick={() => move(5)} />
+          <MoveBtn label="▶▶" title="Forward 20 m" onClick={() => move(20)} />
+        </>
+      )}
+      {['bus', 'truck', 'car'].includes(p.kind) && (
+        <button className="ml-1 rounded px-1.5 py-0.5 text-sky-300 hover:bg-slate-800" onClick={(e) => { e.stopPropagation(); void sendAway(p.id) }}>
+          drive off
+        </button>
+      )}
+      <button className="rounded px-1 text-slate-400 hover:bg-slate-800 hover:text-red-300" title="Remove"
+        onClick={(e) => { e.stopPropagation(); void removeProblem(p.id) }}>✕</button>
+    </div>
+  )
+}
+
+function MoveBtn({ label, title, onClick }: { label: string; title: string; onClick: () => void }) {
+  return (
+    <button title={title} onClick={(e) => { e.stopPropagation(); onClick() }}
+      className="grid h-6 min-w-6 place-items-center rounded bg-slate-800 px-1 font-mono text-[11px] hover:bg-slate-700 active:bg-sky-600">
+      {label}
+    </button>
+  )
+}
 
 interface ToolDef { tool: NonNullable<Tool>; icon: string; label: string; hint: string; cause: string }
 
@@ -26,37 +80,27 @@ export default function Toolbar() {
   const setTool = useGame((s) => s.setTool)
   const addProblem = useGame((s) => s.addProblem)
   const problems = useGame((s) => s.frame?.problems)
-  const removeProblem = useGame((s) => s.removeProblem)
-  const sendAway = useGame((s) => s.sendAway)
   const active = TOOLS.find((t) => t.tool.kind === tool?.kind)
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col gap-2 p-3">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col gap-2 p-3">
       {problems && problems.length > 0 && (
-        <div className="pointer-events-auto flex flex-wrap gap-1.5">
-          {problems.map((p) => (
-            <span key={p.id} className="chip gap-1.5 border border-slate-700 bg-slate-900/90 text-slate-200">
-              {p.kind.replace('_', ' ')}{p.moving ? ' (moving)' : ''}
-              {['bus', 'truck', 'car'].includes(p.kind) && (
-                <button className="text-sky-300 hover:underline" onClick={() => sendAway(p.id)}>drive off</button>
-              )}
-              <button className="text-slate-400 hover:text-red-300" title="Remove" onClick={() => removeProblem(p.id)}>✕</button>
-            </span>
-          ))}
+        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5">
+          {problems.map((p) => <ProblemChip key={p.id} p={p} />)}
         </div>
       )}
-      <div className="pointer-events-auto flex items-end gap-3 rounded-xl border border-slate-800 bg-slate-950/90 p-2 backdrop-blur">
+      <div className="pointer-events-auto flex flex-wrap items-end gap-3 rounded-xl border border-slate-800 bg-slate-950/90 p-2 backdrop-blur">
         <div>
           <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Break something: pick, then click the street
+            Create a problem: pick one, then click on the street
           </div>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             {TOOLS.map((t) => {
               const on = tool?.kind === t.tool.kind
               return (
                 <button key={t.tool.kind} title={`${t.hint} (${t.cause})`}
                   onClick={() => setTool(on ? null : t.tool)}
-                  className={`flex w-[72px] flex-col items-center rounded-lg border px-1 py-1.5 text-[11px] leading-tight transition
+                  className={`flex w-[64px] flex-col xl:w-[72px] items-center rounded-lg border px-1 py-1.5 text-[11px] leading-tight transition
                     ${on ? 'border-amber-400 bg-amber-400/15 text-amber-200' : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600'}`}>
                   <span className="text-xl">{t.icon}</span>
                   <span className="mt-0.5 text-center">{t.label}</span>

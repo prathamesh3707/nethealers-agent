@@ -11,6 +11,15 @@ export interface HistoryPoint { tick: number; good: number; fair: number; poor: 
 const MAX_EVENTS = 800
 const MAX_HISTORY = 180
 const SESSION_KEY = 'nethealers.session'
+const MODE_KEY = 'nethealers.mode'
+const INTRO_KEY = 'nethealers.introSeen'
+
+function load(key: string): string | null {
+  try { return localStorage.getItem(key) } catch { return null }
+}
+function save(key: string, value: string) {
+  try { localStorage.setItem(key, value) } catch { /* storage blocked: keep it in memory */ }
+}
 
 interface Store {
   sessionId: string | null
@@ -25,6 +34,14 @@ interface Store {
   tool: Tool
   selected: string | null // incident the side panel focuses on; null = follow the latest
   toast: { text: string; tone: 'info' | 'error' } | null
+  mode: 'simple' | 'expert'
+  introOpen: boolean
+  movable: string | null // the blocker the arrow controls move
+
+  setMode: (m: 'simple' | 'expert') => void
+  setIntro: (open: boolean) => void
+  setMovable: (id: string | null) => void
+  nudge: (dx: number, dy?: number) => Promise<void>
 
   start: (opts?: Partial<NewGame>) => Promise<void>
   resume: () => Promise<void>
@@ -38,6 +55,8 @@ interface Store {
   answer: (incident: string, decision: 'approve' | 'reject') => Promise<void>
   notify: (text: string, tone?: 'info' | 'error') => void
 }
+
+export const BOX_KINDS = new Set(['bus', 'truck', 'car', 'crowd', 'kiosk', 'hoarding'])
 
 let socket: WebSocket | null = null
 let retry: ReturnType<typeof setTimeout> | null = null
@@ -84,6 +103,26 @@ export const useGame = create<Store>((set, get) => {
   return {
     sessionId: null, scene: null, frame: null, events: [], history: [], plannedTowers: {},
     connected: false, starting: false, languageModel: false, tool: null, selected: null, toast: null,
+    mode: load(MODE_KEY) === 'expert' ? 'expert' : 'simple',
+    introOpen: load(INTRO_KEY) !== '1',
+    movable: null,
+
+    setMode(mode) { save(MODE_KEY, mode); set({ mode }) },
+    setIntro(open) { if (!open) save(INTRO_KEY, '1'); set({ introOpen: open }) },
+    setMovable: (movable) => set({ movable }),
+
+    async nudge(dx, dy = 0) {
+      const { sessionId, frame, movable } = get()
+      const pid = movable ?? frame?.problems.find((p) => p.x != null && BOX_KINDS.has(p.kind))?.id
+      const p = frame?.problems.find((q) => q.id === pid)
+      if (!sessionId || !p || p.x == null || p.y == null) return
+      set({ movable: p.id })
+      try {
+        await api.moveProblem(sessionId, p.id, p.x + dx, p.y + dy)
+      } catch (e) {
+        fail(e)
+      }
+    },
 
     async start(opts) {
       set({ starting: true })
@@ -152,7 +191,8 @@ export const useGame = create<Store>((set, get) => {
       const id = get().sessionId
       if (!id) return
       try {
-        await api.addProblem(id, p)
+        const r = await api.addProblem(id, p)
+        if (BOX_KINDS.has(p.kind)) set({ movable: r.id }) // the arrow controls now move what was just placed
       } catch (e) {
         fail(e)
       }

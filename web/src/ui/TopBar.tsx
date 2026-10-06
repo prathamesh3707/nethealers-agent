@@ -47,6 +47,8 @@ export default function TopBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-2 text-xs">
+        <ModeSwitch />
+        <button className="btn-icon" title="What is this? (intro)" onClick={() => useGame.getState().setIntro(true)}>?</button>
         <span className={`chip ${llm?.live ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-800 text-slate-400'}`}
           title={llm?.live ? `Providers: ${llm.providers?.join(', ')}` : 'No language-model key: the planner and safety adviser use plain rules'}>
           {llm?.live ? `🧠 LLM on · ${llm.calls ?? 0} calls` : '🧠 LLM off · plain rules'}
@@ -81,5 +83,20 @@ function MenuItem({ title, sub, onClick }: { title: string; sub: string; onClick
       <div className="text-sm text-slate-100">{title}</div>
       <div className="text-[11px] text-slate-500">{sub}</div>
     </button>
+  )
+}
+
+function ModeSwitch() {
+  const mode = useGame((s) => s.mode)
+  const setMode = useGame((s) => s.setMode)
+  return (
+    <div className="flex overflow-hidden rounded-md border border-slate-700" title="Simple: plain language. Expert: every number and timing.">
+      {(['simple', 'expert'] as const).map((m) => (
+        <button key={m} onClick={() => setMode(m)}
+          className={`px-2.5 py-1 text-xs capitalize ${mode === m ? 'bg-sky-500 text-sky-950' : 'text-slate-300 hover:bg-slate-800'}`}>
+          {m}
+        </button>
+      ))}
+    </div>
   )
 }

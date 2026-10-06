@@ -108,3 +108,20 @@ def test_frames_carry_timings_and_stages(client):
     assert all("ms" in e for fr in frames for e in fr["events"])
     timeline = client.get(f"/sessions/{sid}/incidents/{inc['id']}").json()["events"]
     assert timeline and timeline[0]["stage"] == "detect"
+
+
+def test_shadow_street_shows_what_happens_without_the_agent(client):
+    sid = start(client)["id"]
+    p = client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": BUS_POSITION[0], "y": BUS_POSITION[1]}).json()
+    first = step(client, sid)
+    assert first["without_agent"]["degraded_now"] >= 1  # the bus hurts the shadow street too
+    s = SESSIONS[sid]
+    assert p["id"] in s.shadow_ids and s.shadow_ids[p["id"]] in s.shadow.problems
+    r = client.post(f"/sessions/{sid}/problems/{p['id']}/move", json={"x": BUS_POSITION[0] - 30, "y": BUS_POSITION[1]})
+    assert r.status_code == 200
+    assert s.shadow.box(s.shadow_ids[p["id"]]).center[0] == pytest.approx(BUS_POSITION[0] - 30, abs=0.01)
+    frames = [step(client, sid) for _ in range(10)]
+    f = frames[-1]
+    assert f["score"]["degraded_now"] <= f["without_agent"]["degraded_now"]
+    client.delete(f"/sessions/{sid}/problems/{p['id']}")
+    assert not s.shadow.problems

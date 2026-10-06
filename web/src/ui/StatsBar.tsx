@@ -2,6 +2,60 @@ import { ms } from '../stages'
 import { useGame, type HistoryPoint } from '../store'
 
 export default function StatsBar() {
+  const mode = useGame((s) => s.mode)
+  return mode === 'simple' ? <SimpleStats /> : <ExpertStats />
+}
+
+/** Big, plain numbers, and the comparison that matters: the same street with and without the agent. */
+function SimpleStats() {
+  const frame = useGame((s) => s.frame)
+  const history = useGame((s) => s.history)
+  if (!frame) return null
+  const total = frame.phones.length
+  const ok = frame.score.good + frame.score.fair
+  const hurt = frame.score.degraded_now
+  const without = frame.without_agent
+  const withoutHurt = without?.degraded_now ?? null
+  const saved = withoutHurt !== null ? Math.max(0, withoutHurt - hurt) : null
+  return (
+    <footer className="flex h-[84px] shrink-0 items-center gap-4 overflow-hidden border-t border-slate-800 bg-slate-950 px-5 xl:gap-6">
+      <Big value={`${ok}/${total}`} label="users with service" tone="text-emerald-300" />
+      <Big value={hurt} label="users affected now" tone={hurt ? 'text-red-300' : 'text-slate-100'} />
+      {withoutHurt !== null && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-2">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Same street, same problems, without the agent</div>
+          <div className="mt-0.5 flex items-baseline gap-2">
+            <span className="font-mono text-xl text-red-300">{withoutHurt}</span>
+            <span className="text-sm text-slate-400">users would be affected</span>
+            {saved !== null && saved > 0 && (
+              <span className="chip ml-2 bg-emerald-500/20 text-emerald-300">agent is helping {saved} more user{saved > 1 ? 's' : ''}</span>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="hidden 2xl:block"><Spark history={history} /></div>
+      <div className="ml-auto flex gap-4 xl:gap-6">
+        <Big value={frame.score.phones_rescued} label="users recovered" tone="text-emerald-300" small />
+        <Big value={frame.score.fixes_applied} label="fixes applied" small />
+        <Big value={frame.score.fixes_undone} label="undone (didn’t work)" small />
+        <Big value={frame.score.asked_you} label="times it asked you" tone="text-amber-300" small />
+      </div>
+    </footer>
+  )
+}
+
+function Big({ value, label, tone = 'text-slate-100', small = false }: {
+  value: React.ReactNode; label: string; tone?: string; small?: boolean
+}) {
+  return (
+    <div className="text-center">
+      <div className={`font-mono tabular-nums ${small ? 'text-xl' : 'text-3xl'} ${tone}`}>{value}</div>
+      <div className="text-[11px] text-slate-400">{label}</div>
+    </div>
+  )
+}
+
+function ExpertStats() {
   const frame = useGame((s) => s.frame)
   const history = useGame((s) => s.history)
   if (!frame) return null
@@ -60,7 +114,7 @@ function Spark({ history }: { history: HistoryPoint[] }) {
         <polygon points={`0,${H} ${pts.join(' ')} ${W},${H}`} fill="#ef444433" />
         <polyline points={pts.join(' ')} fill="none" stroke="#f87171" strokeWidth={1.5} />
       </svg>
-      <div className="text-center text-[10px] uppercase tracking-wider text-slate-500">phones hurt · last {history.length}s</div>
+      <div className="text-center text-[10px] uppercase tracking-wider text-slate-500">users affected · last {history.length}s</div>
     </div>
   )
 }

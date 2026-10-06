@@ -44,6 +44,7 @@ export interface Frame {
   timing: { tick_ms: number; agent_ms: number }
   llm: { live: boolean; providers?: string[]; calls?: number; tokens_in?: number; tokens_out?: number }
   error: string | null
+  without_agent: { good: number; fair: number; poor: number; degraded_now: number } | null
 }
 
 export interface NewGame { language_model: boolean; speed: number; auto_approve_after?: number | null }
@@ -80,6 +81,8 @@ export const api = {
   incident: (id: string, inc: string) => call<{ events: AgentEvent[] }>('GET', `/sessions/${id}/incidents/${inc}`),
   addProblem: (id: string, p: NewProblem) => call<{ id: string }>('POST', `/sessions/${id}/problems`, p),
   removeProblem: (id: string, pid: string) => call('DELETE', `/sessions/${id}/problems/${pid}`),
+  moveProblem: (id: string, pid: string, x: number, y: number) =>
+    call('POST', `/sessions/${id}/problems/${pid}/move`, { x, y }),
   sendAway: (id: string, pid: string) => call('POST', `/sessions/${id}/problems/${pid}/leave`),
   control: (id: string, action: string, value?: number) =>
     call('POST', `/sessions/${id}/control`, { action, value }),

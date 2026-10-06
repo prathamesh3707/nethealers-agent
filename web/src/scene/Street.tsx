@@ -52,7 +52,7 @@ function World({ scene }: { scene: Scene }) {
       {scene.zones.map((z) => <ZoneArea key={z.name} zone={z} load={frame?.towers[z.tower]?.load ?? 0} />)}
       {scene.buildings.map((b) => <BuildingBox key={b.name} b={b} />)}
       {frame?.towers.map((t) => <TowerMast key={t.id} t={t} />)}
-      {frame && <Links phones={frame.phones} towers={frame.towers} />}
+      {frame && <Links phones={frame.phones} towers={frame.towers} blockers={frame.blockers} />}
       {frame && <Phones phones={frame.phones} />}
       {frame?.blockers.map((b) => <BlockerBox key={b.id} b={b} />)}
       {frame?.problems.filter((p) => p.kind === 'booster' && p.x != null).map((p) => (
@@ -95,7 +95,7 @@ function Ground({ extent }: { extent: [number, number, number, number] }) {
       <Strip x0={x0} x1={x1} y0={82.5} y1={87.5} color="#334155" />
       <Strip x0={x0} x1={x1} y0={112.5} y1={117.5} color="#334155" />
       <Strip x0={222} x1={244} y0={113} y1={117} color="#0e7490" h={0.03} />
-      <Html position={toV(233, 119, 0.2)} center className="pointer-events-none">
+      <Html zIndexRange={[20, 0]} position={toV(233, 119, 0.2)} center className="pointer-events-none">
         <div className="label whitespace-nowrap text-cyan-300">Bus stop</div>
       </Html>
       {Array.from({ length: Math.floor(w / 12) }, (_, i) => (
@@ -130,9 +130,9 @@ function ZoneArea({ zone, load }: { zone: Zone; load: number }) {
         <planeGeometry args={[zone.x1 - zone.x0, zone.y1 - zone.y0]} />
         <meshBasicMaterial color={over ? '#ef4444' : '#f43f5e'} transparent opacity={over ? 0.35 : 0.13} />
       </mesh>
-      <Html position={toV(zone.x0 + 4, zone.y1 - 4, 1)} className="pointer-events-none">
+      <Html zIndexRange={[20, 0]} position={toV(zone.x0 + 4, zone.y0 + 12, 1)} className="pointer-events-none">
         <div className={`label whitespace-nowrap ${over ? 'text-red-300' : 'text-rose-300'}`}>
-          ✚ {zone.name} · protected · load {load.toFixed(2)} / {zone.max_load.toFixed(2)}
+          🏥 Protected: keep spare capacity · {Math.round(load * 100)}% used of {Math.round(zone.max_load * 100)}%{over ? ' · OVER LIMIT' : ''}
         </div>
       </Html>
     </group>
@@ -149,7 +149,7 @@ function BuildingBox({ b }: { b: Building }) {
         <meshStandardMaterial color={m.color} transparent={m.opacity < 1} opacity={m.opacity}
           roughness={b.material === 'glass' ? 0.1 : 0.85} metalness={b.material === 'glass' ? 0.4 : 0.05} />
       </mesh>
-      <Html position={toV((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.height + 3)} center className="pointer-events-none">
+      <Html zIndexRange={[20, 0]} position={toV((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.height + 3)} center className="pointer-events-none">
         <div className="label whitespace-nowrap text-slate-300">{b.name}</div>
       </Html>
     </group>
@@ -160,6 +160,7 @@ function BuildingBox({ b }: { b: Building }) {
 
 function TowerMast({ t }: { t: Tower }) {
   const planned = useGame((s) => s.plannedTowers[t.id])
+  const mode = useGame((s) => s.mode)
   const changed = planned && (Math.abs(planned.power - t.power_dbm) > 0.01 || Math.abs(planned.tilt - t.tilt) > 0.01)
   const base = toV(t.x, t.y)
   const sector = useMemo(() => {
@@ -182,29 +183,67 @@ function TowerMast({ t }: { t: Tower }) {
         <meshStandardMaterial color={changed ? '#fbbf24' : '#e2e8f0'} emissive={changed ? '#b45309' : '#0ea5e9'}
           emissiveIntensity={0.6} />
       </mesh>
-      <Html position={[0, t.z + 9, 0]} center className="pointer-events-none">
+      <Html zIndexRange={[20, 0]} position={[0, t.z + 9, 0]} center className="pointer-events-none">
         <div className="label whitespace-nowrap text-center">
           <div className="font-semibold text-sky-200">📡 {t.name}</div>
-          <div className={changed ? 'text-amber-300' : 'text-slate-400'}>
-            {t.power_dbm.toFixed(0)} dBm · tilt {t.tilt.toFixed(0)}° · load {(t.load * 100).toFixed(0)}%
-          </div>
+          {mode === 'expert' ? (
+            <div className={changed ? 'text-amber-300' : 'text-slate-400'}>
+              {t.power_dbm.toFixed(0)} dBm · tilt {t.tilt.toFixed(0)}° · load {(t.load * 100).toFixed(0)}%
+            </div>
+          ) : (
+            <div className="text-slate-400">
+              {(t.load * 100).toFixed(0)}% busy{changed ? <span className="text-amber-300"> · adjusted by agent</span> : ''}
+            </div>
+          )}
         </div>
       </Html>
     </group>
   )
 }
 
-/** One faint line from each phone to the tower serving it, coloured by its signal. */
-function Links({ phones, towers }: { phones: Phone[]; towers: Tower[] }) {
-  const geom = useMemo(() => {
+/** Where the 2D segment a->b first enters the box, as a fraction along it (Liang–Barsky), or null. */
+function hitBox(ax: number, ay: number, bx: number, by: number, b: Blocker): number | null {
+  let t0 = 0
+  let t1 = 1
+  const dx = bx - ax
+  const dy = by - ay
+  const edges: [number, number][] = [[-dx, ax - b.x0], [dx, b.x1 - ax], [-dy, ay - b.y0], [dy, b.y1 - ay]]
+  for (const [p, q] of edges) {
+    if (p === 0) { if (q < 0) return null; continue }
+    const r = q / p
+    if (p < 0) { if (r > t1) return null; if (r > t0) t0 = r } else { if (r < t0) return null; if (r < t1) t1 = r }
+  }
+  return t0 > 0.02 && t0 < 0.98 ? t0 : null
+}
+
+/**
+ * A line from each phone to the tower serving it, coloured by its signal. Where a bus, crowd or board
+ * cuts the line, it is drawn red up to the obstacle with a ✖ there: the blockage you can see.
+ */
+function Links({ phones, towers, blockers }: { phones: Phone[]; towers: Tower[]; blockers: Blocker[] }) {
+  const mode = useGame((s) => s.mode)
+  const { geom, blockedGeom, hits } = useMemo(() => {
     const pos: number[] = []
     const col: number[] = []
+    const bpos: number[] = []
+    const hitPts: THREE.Vector3[] = []
     const c = new THREE.Color()
     for (const p of phones) {
       const t = towers[p.tower]
       if (!t) continue
       const a = toV(t.x, t.y, t.z + 1)
       const b = toV(p.x, p.y, 1.4)
+      let hit: number | null = null
+      for (const bl of blockers) {
+        const h = hitBox(t.x, t.y, p.x, p.y, bl)
+        if (h !== null && (hit === null || h < hit)) hit = h
+      }
+      if (hit !== null && p.band !== 'good') {
+        const m = a.clone().lerp(b, hit)
+        bpos.push(a.x, a.y, a.z, m.x, m.y, m.z)
+        hitPts.push(m)
+        continue
+      }
       pos.push(a.x, a.y, a.z, b.x, b.y, b.z)
       c.set(BAND_COLOR[p.band])
       col.push(c.r, c.g, c.b, c.r, c.g, c.b)
@@ -212,13 +251,32 @@ function Links({ phones, towers }: { phones: Phone[]; towers: Tower[] }) {
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
-    return g
-  }, [phones, towers])
-  useEffect(() => () => geom.dispose(), [geom])
+    const bg = new THREE.BufferGeometry()
+    bg.setAttribute('position', new THREE.Float32BufferAttribute(bpos, 3))
+    return { geom: g, blockedGeom: bg, hits: hitPts }
+  }, [phones, towers, blockers])
+  useEffect(() => () => { geom.dispose(); blockedGeom.dispose() }, [geom, blockedGeom])
   return (
-    <lineSegments geometry={geom}>
-      <lineBasicMaterial vertexColors transparent opacity={0.22} />
-    </lineSegments>
+    <group>
+      <lineSegments geometry={geom}>
+        <lineBasicMaterial vertexColors transparent opacity={mode === 'simple' ? 0.32 : 0.22} />
+      </lineSegments>
+      <lineSegments geometry={blockedGeom}>
+        <lineBasicMaterial color="#ef4444" transparent opacity={0.9} />
+      </lineSegments>
+      {hits.map((h, i) => <BlockMark key={i} at={h} />)}
+    </group>
+  )
+}
+
+const crossGeom = new THREE.BoxGeometry(2.6, 0.5, 0.5)
+
+function BlockMark({ at }: { at: THREE.Vector3 }) {
+  return (
+    <group position={at}>
+      <mesh geometry={crossGeom} rotation-y={Math.PI / 4}><meshBasicMaterial color="#ef4444" /></mesh>
+      <mesh geometry={crossGeom} rotation-y={-Math.PI / 4}><meshBasicMaterial color="#ef4444" /></mesh>
+    </group>
   )
 }
 
@@ -258,7 +316,7 @@ function PhoneDot({ p, focused }: { p: Phone; focused: boolean }) {
         </mesh>
       )}
       {hover && (
-        <Html center position={[0, 5, 0]} className="pointer-events-none">
+        <Html zIndexRange={[20, 0]} center position={[0, 5, 0]} className="pointer-events-none">
           <div className="label whitespace-nowrap">
             Phone {p.id} · {p.sinr.toFixed(0)} dB · {p.mbps.toFixed(1)}/{p.wants_mbps.toFixed(1)} Mbps · T{'ABC'[p.tower] ?? p.tower}
           </div>
@@ -285,7 +343,7 @@ function BlockerBox({ b }: { b: Blocker }) {
         <meshStandardMaterial color={color} transparent={b.hidden} opacity={b.hidden ? 0.45 : 1}
           emissive={color} emissiveIntensity={0.15} />
       </mesh>
-      <Html position={[0, b.height + 3, 0]} center className="pointer-events-none">
+      <Html zIndexRange={[20, 0]} position={[0, b.height + 3, 0]} center className="pointer-events-none">
         <div className="label whitespace-nowrap font-semibold" style={{ color }}>
           {b.kind === 'bus' ? '🚌' : b.kind === 'truck' ? '🚚' : b.kind === 'car' ? '🚗' : b.kind === 'crowd' ? '👥' : '⬛'}{' '}
           {b.kind}{b.hidden ? ' (twin can’t see)' : ''}
@@ -314,7 +372,7 @@ function Booster({ x, y }: { x: number; y: number }) {
         <boxGeometry args={[2, 4, 2]} />
         <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={0.6} />
       </mesh>
-      <Html position={[0, 7, 0]} center className="pointer-events-none">
+      <Html zIndexRange={[20, 0]} position={[0, 7, 0]} center className="pointer-events-none">
         <div className="label whitespace-nowrap text-rose-300">📶 illegal booster</div>
       </Html>
     </group>

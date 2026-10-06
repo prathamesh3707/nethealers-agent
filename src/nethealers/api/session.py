@@ -82,6 +82,9 @@ class Session:
     routes: dict = field(default_factory=dict)  # problem id -> remaining (x, y) positions, one per tick; None = remove
     error: str | None = None  # the last tick that failed; the game pauses so nothing runs on a broken state
     tick_ms: float = 0.0  # wall time of the latest tick (street + agent)
+    # The same street with the same problems but no agent: what would have happened without it.
+    shadow: World | None = None
+    shadow_ids: dict = field(default_factory=dict)  # problem id on the street -> same problem on the shadow
 
     # ------------------------------------------------------------------ clock
 
@@ -91,9 +94,11 @@ class Session:
             t0 = time.perf_counter()
             self._drive()
             self.world.step()
+            if self.shadow is not None:
+                self.shadow.step()
             events = self.agent.on_tick() if self.agent else []
             self.tick_ms = (time.perf_counter() - t0) * 1000
-            if self.world.tick <= WARMUP_TICKS + 1:
+            if self.world.tick <= WARMUP_TICKS:
                 r = self.world.last
                 for uid, s in zip(r.ue_ids, r.sinr_db):
                     self.baseline[int(uid)] = float(s)
@@ -155,9 +160,20 @@ class Session:
             nxt = route.pop(0)
             if nxt is None:
                 self.routes.pop(pid)
-                clear_problem(self.world, pid)
+                self._clear(pid)
             else:
-                move_blocker(self.world, pid, *nxt)
+                self._move(pid, *nxt)
+
+    def _move(self, pid: str, x: float, y: float) -> None:
+        move_blocker(self.world, pid, x, y)
+        if self.shadow is not None and pid in self.shadow_ids:
+            move_blocker(self.shadow, self.shadow_ids[pid], x, y)
+
+    def _clear(self, pid: str) -> None:
+        clear_problem(self.world, pid)
+        sid = self.shadow_ids.pop(pid, None)
+        if self.shadow is not None and sid in self.shadow.problems:
+            clear_problem(self.shadow, sid)
 
     # ------------------------------------------------------------------ what the player sees
 
@@ -218,7 +234,8 @@ class Session:
                 "incidents": incidents, "events": [e.to_dict() for e in (events or [])], "score": self.score(),
                 "timing": {"tick_ms": round(self.tick_ms, 1),
                            "agent_ms": round(self.agent.last_tick_ms, 1) if self.agent else 0.0},
-                "llm": self._llm_stats(), "error": self.error}
+                "llm": self._llm_stats(), "error": self.error,
+                "without_agent": self.counts(self.shadow) if self.shadow is not None else None}
 
     def _llm_stats(self) -> dict:
         roles = self.agent.roles if self.agent else None
@@ -227,6 +244,16 @@ class Session:
             return {"live": False}
         return {"live": bool(roles.live), "providers": llm.ready, "calls": llm.calls,
                 "tokens_in": llm.tokens_in, "tokens_out": llm.tokens_out}
+
+    def counts(self, world: World) -> dict:
+        r = world.last
+        if r is None:
+            return {}
+        bands = [band(float(s)) for s in r.sinr_db]
+        degraded = sum(1 for u, s in zip(map(int, r.ue_ids), r.sinr_db)
+                       if u in self.baseline and s < self.baseline[u] - 4 and s < 13)
+        return {"good": bands.count("good"), "fair": bands.count("fair"), "poor": bands.count("poor"),
+                "degraded_now": degraded}
 
     def score(self) -> dict:
         r = self.world.last
@@ -259,40 +286,46 @@ class Session:
         if kind == "misconfig" and not 0 <= int(kw.get("tower", 2)) < len(w.towers):
             raise ValueError(f"no tower {kw.get('tower')}")
         with self.lock:
-            if kind in BLOCKERS:
-                drive = bool(kw.get("drive", False)) and kind in VEHICLES
-                start_x = max(w.extent[0], float(x) - DRIVE_IN_M) if drive else float(x)
-                p = add_blocker(w, kind, start_x, float(y), along_y=bool(kw.get("along_y", False)),
-                                hidden=bool(kw.get("hidden", False)))
-                if drive:  # drives in, waits at the stop, then drives off and disappears
-                    n_in = int(round((float(x) - start_x) / DRIVE_STEP_M))
-                    route = [(start_x + DRIVE_STEP_M * k, float(y)) for k in range(1, n_in)] + [(float(x), float(y))]
-                    route += [(float(x), float(y))] * max(0, int(kw.get("stay", 25)))
-                    route += [(min(w.extent[1], float(x) + LEAVE_STEP_M * k), float(y)) for k in range(1, 4)]
-                    self.routes[p.id] = route + [None]
-            elif kind == "stuck_beam":
+            drive = bool(kw.get("drive", False)) and kind in BLOCKERS and kind in VEHICLES
+            start_x = max(w.extent[0], float(x) - DRIVE_IN_M) if drive else (float(x) if x is not None else None)
+            if kind == "stuck_beam":
                 ids = kw.get("phones") or self._phones_near(x, y, 25)[:8]
                 known = set(w.ue_index())
-                ids = [int(i) for i in ids if int(i) in known]
-                if not ids:
+                kw = {**kw, "phones": [int(i) for i in ids if int(i) in known]}
+                if not kw["phones"]:
                     raise ValueError("no phones there to affect")
-                p = stick_beams(w, ids, int(kw.get("offset", 3)))
-            elif kind == "misconfig":
-                p = misconfigure_tower(w, int(kw.get("tower", 2)), float(kw.get("power_db", 6)),
-                                       float(kw.get("tilt_deg", -7)))
-            elif kind == "booster":
-                p = add_external_interferer(w, float(x), float(y), float(kw.get("power_dbm", 40)))
-            elif kind == "crowd_surge":
-                p = crowd_surge(w, float(x), float(y), float(kw.get("radius", 12)),
-                                min(int(kw.get("people", 60)), 150), float(kw.get("mbps", 20)))
-            else:
-                raise ValueError(f"unknown problem kind {kind!r}")
+            p = self._create(w, kind, start_x, y, kw)
+            if self.shadow is not None:
+                self.shadow_ids[p.id] = self._create(self.shadow, kind, start_x, y, kw).id
+            if drive:  # drives in, waits at the stop, then drives off and disappears
+                n_in = int(round((float(x) - start_x) / DRIVE_STEP_M))
+                route = [(start_x + DRIVE_STEP_M * k, float(y)) for k in range(1, n_in)] + [(float(x), float(y))]
+                route += [(float(x), float(y))] * max(0, int(kw.get("stay", 25)))
+                route += [(min(w.extent[1], float(x) + LEAVE_STEP_M * k), float(y)) for k in range(1, 4)]
+                self.routes[p.id] = route + [None]
             return {"id": p.id, "label": p.label, "kind": p.kind}
+
+    @staticmethod
+    def _create(w: World, kind: str, x, y, kw: dict):
+        if kind in BLOCKERS:
+            return add_blocker(w, kind, float(x), float(y), along_y=bool(kw.get("along_y", False)),
+                               hidden=bool(kw.get("hidden", False)))
+        if kind == "stuck_beam":
+            return stick_beams(w, kw["phones"], int(kw.get("offset", 3)))
+        if kind == "misconfig":
+            return misconfigure_tower(w, int(kw.get("tower", 2)), float(kw.get("power_db", 6)),
+                                      float(kw.get("tilt_deg", -7)))
+        if kind == "booster":
+            return add_external_interferer(w, float(x), float(y), float(kw.get("power_dbm", 40)))
+        if kind == "crowd_surge":
+            return crowd_surge(w, float(x), float(y), float(kw.get("radius", 12)),
+                               min(int(kw.get("people", 60)), 150), float(kw.get("mbps", 20)))
+        raise ValueError(f"unknown problem kind {kind!r}")
 
     def remove_problem(self, problem_id: str) -> None:
         with self.lock:
             self.routes.pop(problem_id, None)
-            clear_problem(self.world, problem_id)
+            self._clear(problem_id)
 
     def move_problem(self, problem_id: str, x: float, y: float) -> None:
         with self.lock:
@@ -302,7 +335,8 @@ class Session:
             if "box" not in p.detail:
                 raise ValueError(f"{p.kind} can't be moved")
             self.routes.pop(problem_id, None)
-            move_blocker(self.world, problem_id, float(x), float(y))
+            x0, x1, y0, y1 = self.world.extent
+            self._move(problem_id, min(max(float(x), x0), x1), min(max(float(y), y0), y1))
 
     def send_away(self, problem_id: str) -> None:
         """A parked vehicle drives off now (or a blocker is lifted away)."""
@@ -356,6 +390,7 @@ def new_session(layout: str = "station_road", seed: int = 7, agent: bool = True,
     s = Session(w, ag, op)
     for _ in range(WARMUP_TICKS):
         s.tick()
+    s.shadow = w.copy()  # from here on, the same street without the agent
     return s
 
 
