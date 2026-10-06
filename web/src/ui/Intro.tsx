@@ -22,7 +22,7 @@ const SLIDES = [
     icon: '🎮',
     title: 'How to use this demo',
     body: [
-      'Start a ready-made scenario under the map, or pick a problem (bus, truck, crowd…) and click on the street. Move vehicles with the ◀ ▶ buttons.',
+      'Take the guided demo to see one incident step by step, or explore freely: pick a problem (bus, truck, crowd…) and click on the street, then move it with the ◀ ▶ buttons.',
       'Users are dots: green = good service, amber = slow, red = no service. The right panel shows what the agent is doing, step by step. You are the network operator: approve or reject its bigger changes.',
     ],
   },
@@ -31,7 +31,6 @@ const SLIDES = [
 export default function Intro() {
   const open = useGame((s) => s.introOpen)
   const setIntro = useGame((s) => s.setIntro)
-  const addProblem = useGame((s) => s.addProblem)
   const [n, setN] = useState(0)
   if (!open) return null
   const s = SLIDES[n]
@@ -62,8 +61,8 @@ export default function Intro() {
                 <button className="btn bg-slate-800 hover:bg-slate-700" onClick={close}>Explore freely</button>
                 <button className="btn bg-emerald-500 text-emerald-950 hover:bg-emerald-400" onClick={() => {
                   close()
-                  void addProblem({ kind: 'bus', x: 211, y: 107.8, drive: true, stay: 40 })
-                }}>▶ Start with a bus</button>
+                  useGame.getState().setTour(0)
+                }}>▶ Take the guided demo</button>
               </>
             )}
           </div>

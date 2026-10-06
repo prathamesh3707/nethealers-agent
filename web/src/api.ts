@@ -47,7 +47,7 @@ export interface Frame {
   without_agent: { good: number; fair: number; poor: number; degraded_now: number } | null
 }
 
-export interface NewGame { language_model: boolean; speed: number; auto_approve_after?: number | null }
+export interface NewGame { language_model: boolean; speed: number; auto_approve_after?: number | null; start_paused?: boolean }
 export interface NewProblem {
   kind: string; x?: number; y?: number; drive?: boolean; stay?: number; tower?: number; people?: number
   along_y?: boolean; hidden?: boolean

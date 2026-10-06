@@ -18,11 +18,11 @@ function SimpleStats() {
   const withoutHurt = without?.degraded_now ?? null
   const saved = withoutHurt !== null ? Math.max(0, withoutHurt - hurt) : null
   return (
-    <footer className="flex h-[84px] shrink-0 items-center gap-4 overflow-hidden border-t border-slate-800 bg-slate-950 px-5 xl:gap-6">
+    <footer data-tour="stats" className="flex h-[84px] shrink-0 items-center gap-4 overflow-hidden border-t border-slate-800 bg-slate-950 px-5 xl:gap-6">
       <Big value={`${ok}/${total}`} label="users with service" tone="text-emerald-300" />
       <Big value={hurt} label="users affected now" tone={hurt ? 'text-red-300' : 'text-slate-100'} />
       {withoutHurt !== null && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-2">
+        <div data-tour="compare" className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-2">
           <div className="text-[10px] uppercase tracking-wider text-slate-500">Same street, same problems, without the agent</div>
           <div className="mt-0.5 flex items-baseline gap-2">
             <span className="font-mono text-xl text-red-300">{withoutHurt}</span>

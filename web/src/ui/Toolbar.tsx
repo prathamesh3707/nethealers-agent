@@ -22,7 +22,7 @@ function ProblemChip({ p }: { p: Problem }) {
   const move = (dx: number) => { setMovable(p.id); void nudge(dx) }
   const name = KIND_NAME[p.kind] ?? p.kind[0].toUpperCase() + p.kind.slice(1)
   return (
-    <div onClick={() => canMove && setMovable(p.id)}
+    <div data-tour={canMove ? 'vehicle' : undefined} onClick={() => canMove && setMovable(p.id)}
       className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs backdrop-blur
         ${selected ? 'border-amber-400 bg-amber-950/80 text-amber-100' : 'border-slate-700 bg-slate-900/90 text-slate-200'}`}>
       <span className="text-sm">{KIND_ICON[p.kind] ?? '⚠'}</span>
@@ -58,8 +58,8 @@ function MoveBtn({ label, title, onClick }: { label: string; title: string; onCl
 interface ToolDef { tool: NonNullable<Tool>; icon: string; label: string; hint: string; cause: string }
 
 const TOOLS: ToolDef[] = [
-  { tool: { kind: 'bus', drive: true }, icon: '🚌', label: 'Bus', hint: 'Drives in, waits 30 s, leaves', cause: 'blockage' },
-  { tool: { kind: 'truck', drive: true }, icon: '🚚', label: 'Truck', hint: 'Drives in, waits 30 s, leaves', cause: 'blockage' },
+  { tool: { kind: 'bus', drive: true }, icon: '🚌', label: 'Bus', hint: 'Parks where you click; move it with ◀ ▶', cause: 'blockage' },
+  { tool: { kind: 'truck', drive: true }, icon: '🚚', label: 'Truck', hint: 'Parks where you click; move it with ◀ ▶', cause: 'blockage' },
   { tool: { kind: 'crowd' }, icon: '👥', label: 'Crowd', hint: 'People standing in the signal path', cause: 'blockage' },
   { tool: { kind: 'hoarding' }, icon: '🪧', label: 'Hoarding', hint: 'A new advertising board', cause: 'blockage' },
   { tool: { kind: 'stuck_beam' }, icon: '🔦', label: 'Stuck beam', hint: 'Nearby phones get a badly aimed beam', cause: 'wrong beam' },
@@ -69,7 +69,7 @@ const TOOLS: ToolDef[] = [
 ]
 
 const SCENARIOS: { label: string; problems: NewProblem[] }[] = [
-  { label: 'Bus at the bus stop', problems: [{ kind: 'bus', x: 211, y: 107.8, drive: true, stay: 40 }] },
+  { label: 'Bus at the bus stop', problems: [{ kind: 'bus', x: 211, y: 107.8 }] },
   { label: 'Stuck beams at the bus stop', problems: [{ kind: 'stuck_beam', x: 233, y: 115 }] },
   { label: 'Tower C misconfigured', problems: [{ kind: 'misconfig', tower: 2 }] },
   { label: 'Crowd surge on the street', problems: [{ kind: 'crowd_surge', x: 140, y: 100, people: 40 }] },
@@ -89,7 +89,7 @@ export default function Toolbar() {
           {problems.map((p) => <ProblemChip key={p.id} p={p} />)}
         </div>
       )}
-      <div className="pointer-events-auto flex flex-wrap items-end gap-3 rounded-xl border border-slate-800 bg-slate-950/90 p-2 backdrop-blur">
+      <div data-tour="toolbar" className="pointer-events-auto flex flex-wrap items-end gap-3 rounded-xl border border-slate-800 bg-slate-950/90 p-2 backdrop-blur">
         <div>
           <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
             Create a problem: pick one, then click on the street

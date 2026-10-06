@@ -7,6 +7,7 @@ import SimplePanel from './ui/SimplePanel'
 import StatusLine from './ui/StatusLine'
 import StatsBar from './ui/StatsBar'
 import Toolbar from './ui/Toolbar'
+import Tour from './ui/Tour'
 import TopBar from './ui/TopBar'
 
 export default function App() {
@@ -43,7 +44,7 @@ export default function App() {
         </div>
       )}
       <main className="flex min-h-0 flex-1">
-        <section className="relative min-w-0 flex-1">
+        <section data-tour="map" className="relative min-w-0 flex-1">
           <Street />
           <Legend />
           <Toolbar />
@@ -54,6 +55,7 @@ export default function App() {
       </main>
       <StatsBar />
       <Intro />
+      <Tour />
       {toast && (
         <div className={`fixed left-1/2 top-16 z-30 -translate-x-1/2 rounded-lg px-4 py-2 text-sm shadow-xl
           ${toast.tone === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-100'}`}>
@@ -66,7 +68,7 @@ export default function App() {
 
 function Legend() {
   return (
-    <div className="pointer-events-none absolute left-3 top-3 z-10 hidden rounded-lg md:block border border-slate-800 bg-slate-950/80 px-3 py-2 text-[11px] text-slate-300 backdrop-blur">
+    <div data-tour="legend" className="pointer-events-none absolute left-3 top-3 z-10 hidden rounded-lg md:block border border-slate-800 bg-slate-950/80 px-3 py-2 text-[11px] text-slate-300 backdrop-blur">
       <div className="mb-1 font-semibold uppercase tracking-wider text-slate-500">Each dot is a user’s phone</div>
       <div className="flex items-center gap-3">
         <span><i className="dot bg-emerald-500" /> good service</span>

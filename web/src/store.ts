@@ -1,5 +1,6 @@
+import { useMemo } from 'react'
 import { create } from 'zustand'
-import { api, ApiError, liveUrl, type AgentEvent, type Frame, type NewGame, type NewProblem, type Scene } from './api'
+import { api, ApiError, liveUrl, type AgentEvent, type Frame, type Incident, type NewGame, type NewProblem, type Scene } from './api'
 
 export type Tool =
   | { kind: 'bus' | 'truck' | 'car'; drive: boolean }
@@ -37,6 +38,8 @@ interface Store {
   mode: 'simple' | 'expert'
   introOpen: boolean
   movable: string | null // the blocker the arrow controls move
+  tour: number | null // guided demo step, or null when not touring
+  setTour: (n: number | null) => void
 
   setMode: (m: 'simple' | 'expert') => void
   setIntro: (open: boolean) => void
@@ -106,6 +109,8 @@ export const useGame = create<Store>((set, get) => {
     mode: load(MODE_KEY) === 'expert' ? 'expert' : 'simple',
     introOpen: load(INTRO_KEY) !== '1',
     movable: null,
+    tour: null,
+    setTour: (tour) => set({ tour }),
 
     setMode(mode) { save(MODE_KEY, mode); set({ mode }) },
     setIntro(open) { if (!open) save(INTRO_KEY, '1'); set({ introOpen: open }) },
@@ -127,6 +132,13 @@ export const useGame = create<Store>((set, get) => {
     async start(opts) {
       set({ starting: true })
       try {
+        // Detach from the old game's stream first: when the server closes it, that must not look like
+        // "the server lost our game" (which would start yet another game).
+        const oldSocket = socket
+        socket = null
+        if (retry) clearTimeout(retry)
+        oldSocket?.close()
+        set({ connected: false })
         const old = get().sessionId
         if (old) api.stop(old).catch(() => {})
         const g = await api.newGame({ language_model: true, speed: 1, ...opts })
@@ -151,6 +163,7 @@ export const useGame = create<Store>((set, get) => {
       if (saved) {
         try {
           const [scene, frame] = await Promise.all([api.scene(saved), api.state(saved)])
+          if (get().sessionId && get().sessionId !== saved) return // a new game was started meanwhile
           set({
             sessionId: saved, scene, frame, languageModel: !!frame.llm.live,
             plannedTowers: Object.fromEntries(frame.towers.map((t) => [t.id, { power: t.power_dbm, tilt: t.tilt }])),
@@ -174,8 +187,7 @@ export const useGame = create<Store>((set, get) => {
       if ('drive' in tool) {
         // vehicles stay in a lane of Station Road
         p.y = y > 100 ? 107.8 : 92.2
-        p.drive = tool.drive
-        p.stay = 30
+        p.drive = false // vehicles park where you click; move them with the arrow buttons
       } else if (tool.kind === 'misconfig') {
         const nearest = [...frame.towers].sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0]
         p.tower = nearest.id
@@ -225,14 +237,26 @@ export const useGame = create<Store>((set, get) => {
   }
 })
 
-/** The incident the panel should show: the one the player picked, else whatever needs them, else the newest. */
+/**
+ * The incident the panels and the map focus on: the one the player picked, else whatever needs them, else the
+ * biggest open problem, else the biggest recent one. One- or two-user side effects don't take over.
+ */
+export function pickMain(incidents: Incident[], selected: string | null = null): Incident | null {
+  if (selected) return incidents.find((i) => i.id === selected) ?? null
+  const real = incidents.filter((i) => i.status !== 'false_alarm')
+  const waiting = real.find((i) => i.waiting_for_you)
+  if (waiting) return waiting
+  const bySize = (a: Incident, b: Incident) => b.phones.length - a.phones.length || b.opened - a.opened
+  const open = real.filter((i) => i.status !== 'resolved').sort(bySize)
+  if (open.length && open[0].phones.length > 2) return open[0]
+  const recent = [...real].sort((a, b) => b.opened - a.opened).slice(0, 4).sort(bySize)
+  return open[0] ?? recent[0] ?? null
+}
+
+const NO_INCIDENTS: Incident[] = []
+
 export function useFocusedIncident() {
-  return useGame((s) => {
-    const incs = s.frame?.incidents ?? []
-    if (s.selected) return incs.find((i) => i.id === s.selected) ?? null
-    return incs.find((i) => i.waiting_for_you)
-      ?? [...incs].reverse().find((i) => !['resolved', 'false_alarm'].includes(i.status))
-      ?? incs[incs.length - 1]
-      ?? null
-  })
+  const incidents = useGame((s) => s.frame?.incidents ?? NO_INCIDENTS)
+  const selected = useGame((s) => s.selected)
+  return useMemo(() => pickMain(incidents, selected), [incidents, selected])
 }
