@@ -52,6 +52,8 @@ def providers_from_env() -> list[Provider]:
         "openrouter": Provider("openrouter", "https://openrouter.ai/api/v1", env.get("OPENROUTER_API_KEY", ""),
                                tuple(m.strip() for m in env.get("OPENROUTER_MODELS", DEFAULT_OPENROUTER_MODELS)
                                      .split(",") if m.strip())),
+        "openai": Provider("openai", "https://api.openai.com/v1", env.get("OPENAI_API_KEY", ""),
+                           (env.get("OPENAI_MODEL", "") or "gpt-4.1-mini",)),
         "groq": Provider("groq", "https://api.groq.com/openai/v1", env.get("GROQ_API_KEY", ""),
                          tuple(filter(None, [env.get("GROQ_MODEL", "")]))),
         "gemini": Provider("gemini", "https://generativelanguage.googleapis.com/v1beta/openai/",
