@@ -23,6 +23,15 @@ export default function StatusLine() {
     const took = recent.closed! - recent.opened
     text = `Problem solved: service restored for ${recent.phones.length} users in ${took} s.`
     icon = '🎉'
+  } else if (frame.score.degraded_now > 0) {
+    // No open problem, yet some users are below their usual level: say so, so the numbers below don't look wrong.
+    const n = frame.score.degraded_now
+    const without = frame.without_agent?.degraded_now
+    tone = 'border-slate-600/60 bg-slate-900/60 text-slate-100'
+    icon = '👁'
+    text = `No open problems. ${n} user${n === 1 ? ' is' : 's are'} below ${n === 1 ? 'its' : 'their'} usual signal but `
+      + `still ${n === 1 ? 'has' : 'have'} service; the agent counts this as normal variation and keeps watching`
+      + (without != null && without > n ? ` (without the agent: ${without}).` : '.')
   }
   return (
     <div data-tour="status" className={`flex shrink-0 items-center gap-3 border-b px-4 py-2 text-[15px] ${tone}`}>

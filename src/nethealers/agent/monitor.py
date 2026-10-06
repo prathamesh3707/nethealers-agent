@@ -27,6 +27,8 @@ GOOD_DB = 13.0  # a drop only matters once a phone falls below "good"
 PERSIST_TICKS = 2
 WARMUP_TICKS = 5  # learn each phone's normal before judging it
 EMA = 0.3
+EMA_UP = 0.02  # "normal" rises slowly: a temporary improvement (a neighbour briefly louder) mustn't become the
+               # reference that later makes the phone's ordinary level look like a drop
 
 
 @dataclass
@@ -78,7 +80,8 @@ class Monitor:
                 self.streak[uid] = 0
                 self.first_bad.pop(uid, None)
                 if uid not in busy_phones:
-                    self.base_sinr[uid] = sinr if b_sinr is None else (1 - EMA) * b_sinr + EMA * sinr
+                    k = EMA_UP if (b_sinr is not None and sinr > b_sinr and self.seen[uid] > WARMUP_TICKS) else EMA
+                    self.base_sinr[uid] = sinr if b_sinr is None else (1 - k) * b_sinr + k * sinr
                     self.base_sat[uid] = s if b_sat is None else (1 - EMA) * b_sat + EMA * s
         first = min((self.first_bad[u] for u in new), default=world.tick)
         return Flagged(new, first, stale)

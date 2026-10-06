@@ -171,11 +171,11 @@ Six scenarios on Station Road (normal day, moving bus, wrong beam, twin mismatch
 | Scenario | Network alone | Rule fixer | Full agent |
 |---|---|---|---|
 | Normal day | 0 | 0 | 0 (no false alarms, no changes) |
-| Moving bus | 221 + 19 | 76 + 91 | **98 + 20** |
-| Wrong beam | 418 | 131 | **32** |
-| Twin mismatch | 326 | 121 + 78 | **112 + 17** |
-| Hospital-zone conflict | 326 | 82 + 87, **24 zone breaches** | 237 + 0, **0 breaches** |
-| Faulty and stale data | 754 | 734 | **568** |
+| Moving bus | 221 + 19 | 76 + 91 | **106 + 19** |
+| Wrong beam | 418 | 131 | **30** |
+| Twin mismatch | 326 | 121 + 78 | **112 + 11** |
+| Hospital-zone conflict | 326 | 82 + 87, **24 zone breaches** | 221 + 0, **0 breaches** |
+| Faulty and stale data | 754 | 734 | **559** |
 
 The agent made 1-4 changes per run where the rule fixer made about 26, broke no limits in any run, and named the right cause in 88-100% of incidents. The rule fixer is faster during a blockage but never withdraws its moves and breaks the hospital limit; the agent is slower and more careful.
 

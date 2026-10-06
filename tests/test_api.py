@@ -125,3 +125,23 @@ def test_shadow_street_shows_what_happens_without_the_agent(client):
     assert f["score"]["degraded_now"] <= f["without_agent"]["degraded_now"]
     client.delete(f"/sessions/{sid}/problems/{p['id']}")
     assert not s.shadow.problems
+
+
+@pytest.mark.parametrize("problem", [
+    {"kind": "misconfig", "tower": 0},
+    {"kind": "misconfig", "tower": 2},
+    {"kind": "bus", "x": BUS_POSITION[0], "y": BUS_POSITION[1]},
+    {"kind": "stuck_beam", "x": 233, "y": 115},
+])
+def test_after_a_problem_is_removed_nothing_stays_stuck(client, problem):
+    sid = start(client)["id"]
+    p = client.post(f"/sessions/{sid}/problems", json=problem).json()
+    step(client, sid, 20)
+    client.delete(f"/sessions/{sid}/problems/{p['id']}")
+    f = step(client, sid, 60)
+    still_open = [i for i in f["incidents"] if i["status"] not in ("resolved", "false_alarm")]
+    assert not still_open, still_open
+    # the agent never leaves the street worse than it would be without it
+    assert f["score"]["degraded_now"] <= f["without_agent"]["degraded_now"]
+    s = SESSIONS[sid]
+    assert all(abs(t.power_dbm - 33.0) <= 3 for t in s.world.towers)

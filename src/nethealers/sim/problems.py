@@ -76,12 +76,12 @@ def misconfigure_tower(world: World, tower_id: int, power_delta_db: float = 5.0,
     A fault, so it ignores the normal power and tilt limits.
     """
     t = world.towers[tower_id]
-    old_tilt = t.tilt_deg
+    old_power, old_tilt = t.power_dbm, t.tilt_deg
     t.power_dbm += power_delta_db
     t.tilt_deg = max(-5.0, t.tilt_deg + tilt_delta_deg)
     return _register(world, "interference", "neighbour_misconfig",
                      {"tower": tower_id, "power_delta_db": power_delta_db,
-                      "tilt_delta_deg": t.tilt_deg - old_tilt})
+                      "tilt_delta_deg": t.tilt_deg - old_tilt, "power_before": old_power, "tilt_before": old_tilt})
 
 
 def add_external_interferer(world: World, x: float, y: float, power_dbm: float = 40.0, z: float = 4.0) -> Problem:
@@ -125,9 +125,11 @@ def clear_problem(world: World, problem_id: str) -> None:
                 if u.lock_reason == "stuck":
                     u.beam_lock, u.lock_reason = lock, reason
     elif p.kind == "neighbour_misconfig":
+        # A technician puts the tower back to its settings from before the fault (overwriting any compensation
+        # made in the meantime), rather than subtracting the fault from whatever the settings are now.
         t = world.towers[p.detail["tower"]]
-        t.power_dbm -= p.detail["power_delta_db"]
-        t.tilt_deg -= p.detail["tilt_delta_deg"]
+        t.power_dbm = p.detail.get("power_before", t.power_dbm - p.detail["power_delta_db"])
+        t.tilt_deg = p.detail.get("tilt_before", t.tilt_deg - p.detail["tilt_delta_deg"])
     elif p.kind == "external_interferer":
         world.interferers = [i for i in world.interferers if i.name != p.id]
     elif p.kind == "crowd_surge":

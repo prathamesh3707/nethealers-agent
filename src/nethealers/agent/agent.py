@@ -49,6 +49,9 @@ from .twin import TwinTrust, build_twin
 ACTIVE = {"new", "verifying", "waiting_human", "fixed", "closing", "false_alarm", "escalated"}
 TEMPORARY_CAUSES = {"blockage", "congestion"}
 FALSE_ALARM_HOLD = 10
+RETRY_AFTER = 10  # seconds after handing a problem over before trying again, if users are still affected
+MAX_RETRIES = 3
+TIDY_EVERY = 10  # seconds between checks for leftover changes that are no longer needed
 
 
 @dataclass
@@ -90,6 +93,9 @@ class Incident:
     focus: list | None = None  # phones still being worked on after a partial fix
     partial_escalated: bool = False
     decision_seconds: list = field(default_factory=list)
+    needs_diagnosis: bool = True
+    handed_at: int | None = None  # last time it was handed to the operator
+    retries: int = 0
 
     @property
     def kept(self) -> list[Attempt]:
@@ -117,6 +123,7 @@ class Agent:
         self._next = 1
         self._stale_noted = -100
         self._t_mark = time.perf_counter()
+        self._settings = self._snapshot()  # tower settings at the end of the agent's last turn
         self.last_tick_ms = 0.0  # how long the agent's turn took on the latest tick
 
     # ------------------------------------------------------------------ main entry
@@ -133,6 +140,7 @@ class Agent:
 
     def _turn(self) -> None:
         w = self.world
+        self._notice_outside_changes()
         for inc in self.incidents.values():
             inc.phones = [p for p in inc.phones if p in w.ue_index()]
         busy = {p for i in self.incidents.values() if i.status in ACTIVE for p in i.phones}
@@ -172,6 +180,9 @@ class Agent:
                 self._finish_withdrawal(inc)
             elif inc.status == "escalated":
                 self._watch_escalated(inc)
+        if w.tick % TIDY_EVERY == 0:
+            self._tidy_up()
+        self._settings = self._snapshot()
 
     # ------------------------------------------------------------------ incident lifecycle
 
@@ -249,7 +260,8 @@ class Agent:
 
     def _diagnose_and_plan(self, inc: Incident) -> None:
         t0 = time.perf_counter()
-        if not inc.attempts and inc.cause == "unknown":
+        if inc.needs_diagnosis:
+            inc.needs_diagnosis = False
             self._diagnose(inc)
             if inc.status != "new":
                 return
@@ -271,6 +283,15 @@ class Agent:
         inc.cause = max(probs, key=probs.get)
         inc.confidence = probs[inc.cause]
         inc.probs = probs
+        if inc.cause == "none" and self._clearly_worse(known):
+            # The model knows no cause for this, but the phones are plainly worse than their own normal (for example
+            # stranded on the wrong tower after a configuration change). Don't dismiss it: treat the cause as unknown,
+            # so only low-risk moves are tried, and a person is asked because the diagnosis is unsure.
+            inc.cause, inc.confidence = "unknown", 0.0
+            self._say("diagnose", "diagnosis", "No known cause fits, but these phones are clearly worse than their "
+                                               "normal. Treating the cause as unknown: only low-risk moves, with your "
+                                               "approval.", inc, {"probs": probs})
+            return
         if inc.cause == "none":
             inc.status, inc.hold_until, inc.outcome = "false_alarm", w.tick + FALSE_ALARM_HOLD, "false_alarm"
             inc.closed_tick = w.tick
@@ -487,6 +508,16 @@ class Agent:
         inc.status = "new"
         self._plan(inc)
 
+    def _clearly_worse(self, phones: list[int]) -> bool:
+        """Most of these phones have no usable signal, or are at least 6 dB below their own normal."""
+        df = self.monitor.latest().set_index("ue")
+        tg = [u for u in phones if u in df.index]
+        if not tg:
+            return False
+        bad = [u for u in tg if df.loc[u, "sinr_db"] < 0
+               or df.loc[u, "sinr_db"] < self.monitor.base_sinr.get(u, float("inf")) - 6]
+        return len(bad) >= max(1, 0.5 * len(tg))
+
     def _blocked_since(self, inc: Incident, phones: set) -> set:
         """Phones whose main-tower signal fell more than 8 dB since the incident began (more than any power step)."""
         w, base = self.world, inc.base_result
@@ -496,6 +527,18 @@ class Agent:
                 and now[inc.main_tower, idx[p]] - then[inc.main_tower, pos[p]] < -8.0}
 
     def _ask_operator(self, inc: Incident) -> None:
+        # If the users recover while the request waits (the cause went away), the change is no longer needed.
+        df = self.monitor.latest().set_index("ue")
+        sat = (df.throughput_mbps / df.demand_mbps).clip(upper=1)
+        tg = [u for u in inc.phones if u in df.index]
+        healthy = float(np.mean([self.monitor.healthy(u, df.loc[u, "sinr_db"], sat.loc[u]) for u in tg])) if tg else 1
+        inc.unhealthy_ticks = inc.unhealthy_ticks + 1 if healthy >= 0.8 else 0
+        if inc.unhealthy_ticks >= 3:
+            p, _ = inc.pending
+            inc.pending, inc.unhealthy_ticks = None, 0
+            self._close(inc, "recovered", f"The phones recovered on their own while waiting, so the request to "
+                                          f"{p.text[0].lower() + p.text[1:]} was withdrawn.")
+            return
         if self.operator is None:
             return
         p, v = inc.pending
@@ -546,9 +589,10 @@ class Agent:
                 self._plan(inc)
                 return
         if inc.cause in TEMPORARY_CAUSES and self._cause_gone(inc, df):
+            names = "; ".join(a.prediction.text for a in inc.kept if a.prediction)
             for att in reversed(inc.kept):
                 undo_action(w, att.applied)
-            names = "; ".join(a.prediction.text for a in inc.kept if a.prediction)
+                att.kept = False  # withdrawn: no longer one of the agent's active changes
             reason = ("the old tower's signal is back (the blocker has gone)" if inc.cause == "blockage"
                       else "the crowd has thinned out")
             self._say("withdraw", "executor", f"Withdrew the temporary fix ({names}) because {reason}.", inc)
@@ -577,6 +621,31 @@ class Agent:
         if inc.unhealthy_ticks >= 3:
             inc.status = "resolved"
             self._say("resolve", "monitor", "The phones recovered without any change from the agent.", inc)
+        elif healthy < 0.8 and not self._retry(inc) and inc.retries >= MAX_RETRIES \
+                and w_tick_since(self.world, inc.handed_at) >= 2 * RETRY_AFTER:
+            inc.status = "resolved"
+            self._say("resolve", "monitor", f"Still not fixed after {MAX_RETRIES} retries: leaving it with the operator. "
+                                            "The monitor raises it again if service gets worse.", inc)
+
+    def _retry(self, inc: Incident) -> bool:
+        """Handed over but users are still affected: conditions change (the cause may have gone or changed,
+        cooldowns run out), so after a while diagnose and plan again instead of waiting forever."""
+        w = self.world
+        since = inc.handed_at if inc.handed_at is not None else inc.opened
+        if inc.retries >= MAX_RETRIES or w.tick - since < RETRY_AFTER or inc.kept:
+            return False
+        inc.retries += 1
+        df = self.monitor.latest().set_index("ue")
+        sat = (df.throughput_mbps / df.demand_mbps).clip(upper=1)
+        still = [u for u in inc.phones if u in df.index and not self.monitor.healthy(u, df.loc[u, "sinr_db"], sat.loc[u])]
+        self._say("note", "monitor", f"{len(still)} phone(s) still affected {w.tick - since} s after handing over. "
+                                     f"Things may have changed, so diagnosing and planning again (retry {inc.retries} "
+                                     f"of {MAX_RETRIES}).", inc)
+        # Fixes that already failed or breached a limit stay excluded: only new options are tried.
+        inc.status, inc.outcome, inc.closed_tick = "new", None, None
+        inc.focus = still or None
+        inc.cause, inc.needs_diagnosis = "unknown", True
+        return True
 
     def _cause_gone(self, inc: Incident, df: pd.DataFrame) -> bool:
         if inc.cause == "blockage":
@@ -622,10 +691,76 @@ class Agent:
 
     def _say(self, stage: str, agent: str, text: str, inc: Incident | None = None, data: dict | None = None):
         """Log a step. `ms` is the time spent since the previous step this tick: the work behind this one."""
+        if stage == "escalate" and inc is not None:
+            inc.handed_at = self.world.tick
         now = time.perf_counter()
         ms, self._t_mark = (now - self._t_mark) * 1000, now
         return self.log.add(Event(self.world.tick, stage, agent, text, inc.id if inc else None, data or {},
                                   round(ms, 1)))
+
+    # ------------------------------------------------------------------ keeping its own changes honest
+
+    def _snapshot(self) -> dict:
+        return {"towers": {t.id: (round(t.power_dbm, 6), round(t.tilt_deg, 6)) for t in self.world.towers},
+                "cio": {k: round(v, 6) for k, v in self.world.cio.items()}}
+
+    def _active_changes(self) -> list[tuple[Incident, Attempt]]:
+        return [(inc, att) for inc in self.incidents.values() for att in inc.attempts
+                if att.kept and not att.applied.undo.get("frozen")]
+
+    def _notice_outside_changes(self) -> None:
+        """Tower settings that changed between the agent's turns were changed by someone else (a technician
+        fixing a fault, say). The agent's own earlier adjustments to those towers no longer hold, so it stops
+        counting them as its changes (and never 'undoes' them on top of the new settings)."""
+        now = self._snapshot()
+        changed = [t for t, v in now["towers"].items() if self._settings["towers"].get(t) != v]
+        if not changed:
+            return
+        dropped = []
+        for inc, att in self._active_changes():
+            a = att.applied.action
+            if isinstance(a, (PowerChange, TiltChange)) and a.tower in changed:
+                att.kept = None
+                dropped.append((inc, att))
+        names = ", ".join(self.world.towers[t].name for t in changed)
+        if dropped:
+            for inc, att in dropped:
+                self._say("note", "monitor", f"{names} settings were changed outside the agent; its earlier change "
+                                             f"({att.prediction.text if att.prediction else 'adjustment'}) no longer "
+                                             "applies and is dropped from its records.", inc)
+
+    def _tidy_up(self) -> None:
+        """When things are calm, check each change the agent left in place: if the twin predicts that removing it
+        makes nobody worse, it is no longer needed, so remove it. One change per check, newest first."""
+        if any(i.status in ("new", "verifying", "waiting_human", "closing") for i in self.incidents.values()):
+            return
+        changes = [(inc, att) for inc, att in self._active_changes() if inc.status in ("resolved", "escalated")]
+        if not changes or self.diagnoser is None and self.mode != "twin":
+            return
+        w = self.world
+        for inc, att in sorted(changes, key=lambda x: -x[1].tick):
+            twin, _ = build_twin(w, w.last, [])
+            ref, test = twin.copy(), twin.copy()
+            try:
+                undo_action(test, att.applied)
+            except Exception:
+                continue
+            a_df, b_df = ref.run(3).set_index("ue"), test.run(3).set_index("ue")
+            common = [u for u in a_df.index if u in b_df.index]
+            d = b_df.loc[common, "sinr_db"] - a_df.loc[common, "sinr_db"]
+            sa = (a_df.loc[common, "throughput_mbps"] / a_df.loc[common, "demand_mbps"]).clip(upper=1)
+            sb = (b_df.loc[common, "throughput_mbps"] / b_df.loc[common, "demand_mbps"]).clip(upper=1)
+            harmed = int(((d <= -3) | (sb - sa <= -0.1)).sum())
+            if harmed or float(d.median()) < -0.5:
+                continue
+            undo_action(w, att.applied)
+            att.kept = False
+            self.rules.record(att.applied.action, w.tick)
+            text = att.prediction.text if att.prediction else "an earlier change"
+            self._say("withdraw", "executor", f"Tidy-up: removed {text}. It is no longer needed: the twin predicts "
+                                              f"nobody gets worse without it (median {float(d.median()):+.1f} dB).",
+                      inc, {"action": text})
+            return
 
     def _evidence(self, inc: Incident) -> str:
         w = self.world
@@ -662,6 +797,10 @@ class Agent:
 
 
 # ---------------------------------------------------------------------- small helpers
+
+def w_tick_since(world: World, tick: int | None) -> int:
+    return world.tick - tick if tick is not None else 0
+
 
 def _towers(a: Action) -> list[int]:
     if isinstance(a, (BeamOverride, PowerChange, TiltChange)):

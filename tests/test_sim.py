@@ -251,3 +251,12 @@ def test_same_seed_same_results():
     a = station_road(seed=5).run(3)
     b = station_road(seed=5).run(3)
     assert np.allclose(a.sinr_db, b.sinr_db) and np.allclose(a.true_sinr_db, b.true_sinr_db)
+
+
+def test_fixing_a_misconfigured_tower_restores_its_settings_even_after_compensation():
+    w = station_road()
+    before = (w.towers[2].power_dbm, w.towers[2].tilt_deg)
+    p = misconfigure_tower(w, 2, 6.0, -7.0)
+    apply_action(w, TiltChange(2, 7.0))  # someone compensated in the meantime
+    clear_problem(w, p.id)
+    assert (w.towers[2].power_dbm, w.towers[2].tilt_deg) == before  # back to plan, not plan + 7 degrees
