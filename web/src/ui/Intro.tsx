@@ -22,7 +22,7 @@ const SLIDES = [
     icon: '🎮',
     title: 'How to use this demo',
     body: [
-      'Take the guided demo to see one incident step by step, or explore freely: pick a problem (bus, truck, crowd…) and click on the street, then move it with the ◀ ▶ buttons.',
+      'The UI tour explains every part of this screen. The incident demo then plays one bus incident step by step. Or explore freely: pick a problem (bus, truck, crowd…), click on the street, and move it with the ◀ ▶ buttons.',
       'Users are dots: green = good service, amber = slow, red = no service. The right panel shows what the agent is doing, step by step. You are the network operator: approve or reject its bigger changes.',
     ],
   },
@@ -58,11 +58,13 @@ export default function Intro() {
             {!last && <button className="btn bg-sky-500 text-sky-950 hover:bg-sky-400" onClick={() => setN(n + 1)}>Next</button>}
             {last && (
               <>
-                <button className="btn bg-slate-800 hover:bg-slate-700" onClick={close}>Explore freely</button>
+                <button className="btn bg-slate-800 hover:bg-slate-700" onClick={() => { close(); useGame.getState().setTour(0) }}>
+                  ⓘ UI tour
+                </button>
                 <button className="btn bg-emerald-500 text-emerald-950 hover:bg-emerald-400" onClick={() => {
                   close()
-                  useGame.getState().setTour(0)
-                }}>▶ Take the guided demo</button>
+                  useGame.getState().setDemo(true)
+                }}>▶ Incident demo</button>
               </>
             )}
           </div>

@@ -339,17 +339,12 @@ class Session:
             self._move(problem_id, min(max(float(x), x0), x1), min(max(float(y), y0), y1))
 
     def send_away(self, problem_id: str) -> None:
-        """A parked vehicle drives off now (or a blocker is lifted away)."""
+        """A parked vehicle leaves (or a blocker is lifted away) on the next tick. It is taken off the street
+        rather than driven along it, so leaving doesn't briefly block other users' signal paths."""
         with self.lock:
-            p = self.world.problems.get(problem_id)
-            if p is None:
+            if problem_id not in self.world.problems:
                 raise KeyError(problem_id)
-            if p.kind in VEHICLES:
-                x, y = p.detail["x"], p.detail["y"]
-                self.routes[problem_id] = [(min(self.world.extent[1], x + LEAVE_STEP_M * k), y)
-                                           for k in range(1, 4)] + [None]
-            else:
-                self.routes[problem_id] = [None]
+            self.routes[problem_id] = [None]
 
     def answer(self, incident_id: str, decision: str) -> None:
         if decision not in ("approve", "reject"):

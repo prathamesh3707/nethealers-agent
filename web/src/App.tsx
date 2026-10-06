@@ -7,6 +7,7 @@ import SimplePanel from './ui/SimplePanel'
 import StatusLine from './ui/StatusLine'
 import StatsBar from './ui/StatsBar'
 import Toolbar from './ui/Toolbar'
+import Demo from './ui/Demo'
 import Tour from './ui/Tour'
 import TopBar from './ui/TopBar'
 
@@ -56,6 +57,7 @@ export default function App() {
       <StatsBar />
       <Intro />
       <Tour />
+      <Demo />
       {toast && (
         <div className={`fixed left-1/2 top-16 z-30 -translate-x-1/2 rounded-lg px-4 py-2 text-sm shadow-xl
           ${toast.tone === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-100'}`}>

@@ -51,6 +51,7 @@ function Kicker({ children }: { children: React.ReactNode }) {
 function AllClear() {
   const frame = useGame((s) => s.frame)
   const setTour = useGame((s) => s.setTour)
+  const setDemo = useGame((s) => s.setDemo)
   return (
     <Box tour="panel">
       <Kicker>Network status</Kicker>
@@ -59,9 +60,10 @@ function AllClear() {
         {frame?.score.good ?? 0} of {frame?.phones.length ?? 0} users have good service. The agent checks every
         user’s signal once a second and steps in when something goes wrong.
       </p>
-      <button className="btn mt-4 w-full bg-emerald-500 py-2 text-emerald-950 hover:bg-emerald-400" onClick={() => setTour(0)}>
-        ▶ Take the guided demo
-      </button>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button className="btn bg-slate-800 py-2 hover:bg-slate-700" onClick={() => setTour(0)}>ⓘ UI tour</button>
+        <button className="btn bg-emerald-500 py-2 text-emerald-950 hover:bg-emerald-400" onClick={() => setDemo(true)}>▶ Incident demo</button>
+      </div>
       <p className="mt-2 text-center text-xs text-slate-500">or create a problem from the toolbar under the map</p>
     </Box>
   )

@@ -25,7 +25,7 @@ export default function TopBar() {
         </div>
       </div>
 
-      <div className="ml-4 flex items-center gap-1.5">
+      <div data-tour="controls" className="ml-4 flex items-center gap-1.5">
         <button className="btn-icon" title={paused ? 'Resume' : 'Pause'} onClick={() => control(paused ? 'resume' : 'pause')}>
           {paused ? '▶' : '❚❚'}
         </button>
@@ -47,12 +47,15 @@ export default function TopBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-2 text-xs">
-        <button className="btn bg-emerald-600/90 py-1 text-xs text-emerald-50 hover:bg-emerald-500" onClick={() => useGame.getState().setTour(0)}>
-          ▶ Guided demo
+        <button className="btn bg-slate-800 py-1 text-xs hover:bg-slate-700" onClick={() => useGame.getState().setTour(0)}>
+          ⓘ UI tour
+        </button>
+        <button className="btn bg-emerald-600/90 py-1 text-xs text-emerald-50 hover:bg-emerald-500" onClick={() => useGame.getState().setDemo(true)}>
+          ▶ Incident demo
         </button>
         <ModeSwitch />
         <button className="btn-icon" title="What is this? (intro)" onClick={() => useGame.getState().setIntro(true)}>?</button>
-        <span className={`chip ${llm?.live ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-800 text-slate-400'}`}
+        <span data-tour="llm" className={`chip ${llm?.live ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-800 text-slate-400'}`}
           title={llm?.live ? `Providers: ${llm.providers?.join(', ')}` : 'No language-model key: the planner and safety adviser use plain rules'}>
           {llm?.live ? `🧠 LLM on · ${llm.calls ?? 0} calls` : '🧠 LLM off · plain rules'}
         </span>

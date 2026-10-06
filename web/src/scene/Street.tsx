@@ -131,7 +131,7 @@ function ZoneArea({ zone, load }: { zone: Zone; load: number }) {
         <meshBasicMaterial color={over ? '#ef4444' : '#f43f5e'} transparent opacity={over ? 0.35 : 0.13} />
       </mesh>
       <Html zIndexRange={[20, 0]} position={toV(zone.x0 + 4, zone.y0 + 12, 1)} className="pointer-events-none">
-        <div className={`label whitespace-nowrap ${over ? 'text-red-300' : 'text-rose-300'}`}>
+        <div data-tour="hospital" className={`label whitespace-nowrap ${over ? 'text-red-300' : 'text-rose-300'}`}>
           🏥 Protected: keep spare capacity · {Math.round(load * 100)}% used of {Math.round(zone.max_load * 100)}%{over ? ' · OVER LIMIT' : ''}
         </div>
       </Html>
@@ -184,7 +184,7 @@ function TowerMast({ t }: { t: Tower }) {
           emissiveIntensity={0.6} />
       </mesh>
       <Html zIndexRange={[20, 0]} position={[0, t.z + 9, 0]} center className="pointer-events-none">
-        <div className="label whitespace-nowrap text-center">
+        <div data-tour={t.id === 0 ? 'tower' : undefined} className="label whitespace-nowrap text-center">
           <div className="font-semibold text-sky-200">📡 {t.name}</div>
           {mode === 'expert' ? (
             <div className={changed ? 'text-amber-300' : 'text-slate-400'}>
@@ -344,7 +344,7 @@ function BlockerBox({ b }: { b: Blocker }) {
           emissive={color} emissiveIntensity={0.15} />
       </mesh>
       <Html zIndexRange={[20, 0]} position={[0, b.height + 3, 0]} center className="pointer-events-none">
-        <div className="label whitespace-nowrap font-semibold" style={{ color }}>
+        <div data-tour="blocker" className="label whitespace-nowrap font-semibold" style={{ color }}>
           {b.kind === 'bus' ? '🚌' : b.kind === 'truck' ? '🚚' : b.kind === 'car' ? '🚗' : b.kind === 'crowd' ? '👥' : '⬛'}{' '}
           {b.kind}{b.hidden ? ' (twin can’t see)' : ''}
         </div>

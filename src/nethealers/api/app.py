@@ -131,25 +131,34 @@ async def state(session_id: str):
     return await asyncio.to_thread(get(session_id).locked_frame)
 
 
+async def show_change(s: Session) -> None:
+    """While paused no ticks run, so push a frame right away: the viewer sees a placed or moved bus at once."""
+    if s.paused:
+        await s.broadcast(await asyncio.to_thread(s.locked_frame))
+
+
 @app.post("/sessions/{session_id}/problems")
-def add_problem(session_id: str, body: NewProblem):
+async def add_problem(session_id: str, body: NewProblem):
     s = get(session_id)
     extra = {k: v for k, v in body.model_dump().items() if v is not None and k not in ("kind", "x", "y")}
     try:
-        return s.add_problem(body.kind, body.x, body.y, **extra)
+        out = await asyncio.to_thread(s.add_problem, body.kind, body.x, body.y, **extra)
     except (ValueError, KeyError, IndexError, TypeError) as e:
         raise HTTPException(400, str(e))
+    await show_change(s)
+    return out
 
 
 @app.post("/sessions/{session_id}/problems/{problem_id}/move")
-def move_problem(session_id: str, problem_id: str, body: Move):
+async def move_problem(session_id: str, problem_id: str, body: Move):
     s = get(session_id)
     try:
-        s.move_problem(problem_id, body.x, body.y)
+        await asyncio.to_thread(s.move_problem, problem_id, body.x, body.y)
     except KeyError:
         raise HTTPException(404, f"no problem {problem_id}")
     except ValueError as e:
         raise HTTPException(400, str(e))
+    await show_change(s)
     return {"moved": problem_id}
 
 
@@ -164,12 +173,13 @@ def send_away(session_id: str, problem_id: str):
 
 
 @app.delete("/sessions/{session_id}/problems/{problem_id}")
-def remove_problem(session_id: str, problem_id: str):
+async def remove_problem(session_id: str, problem_id: str):
     s = get(session_id)
     try:
-        s.remove_problem(problem_id)
+        await asyncio.to_thread(s.remove_problem, problem_id)
     except KeyError:
         raise HTTPException(404, f"no problem {problem_id}")
+    await show_change(s)
     return {"removed": problem_id}
 
 

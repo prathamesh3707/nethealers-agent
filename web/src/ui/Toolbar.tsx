@@ -109,7 +109,7 @@ export default function Toolbar() {
             })}
           </div>
         </div>
-        <div className="ml-auto">
+        <div data-tour="scenarios" className="ml-auto">
           <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Quick scenarios</div>
           <div className="grid grid-cols-2 gap-1">
             {SCENARIOS.map((s) => (

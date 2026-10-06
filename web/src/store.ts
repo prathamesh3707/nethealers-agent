@@ -7,7 +7,7 @@ export type Tool =
   | { kind: 'crowd' | 'kiosk' | 'hoarding' | 'stuck_beam' | 'booster' | 'crowd_surge' | 'misconfig' }
   | null
 
-export interface HistoryPoint { tick: number; good: number; fair: number; poor: number; degraded: number }
+export interface HistoryPoint { tick: number; good: number; fair: number; poor: number; degraded: number; without: number | null }
 
 const MAX_EVENTS = 800
 const MAX_HISTORY = 180
@@ -38,8 +38,10 @@ interface Store {
   mode: 'simple' | 'expert'
   introOpen: boolean
   movable: string | null // the blocker the arrow controls move
-  tour: number | null // guided demo step, or null when not touring
+  tour: number | null // UI tour step, or null when not touring
   setTour: (n: number | null) => void
+  demo: boolean // the incident demo is running
+  setDemo: (on: boolean) => void
 
   setMode: (m: 'simple' | 'expert') => void
   setIntro: (open: boolean) => void
@@ -64,6 +66,7 @@ export const BOX_KINDS = new Set(['bus', 'truck', 'car', 'crowd', 'kiosk', 'hoar
 let socket: WebSocket | null = null
 let retry: ReturnType<typeof setTimeout> | null = null
 let startedOnce = false
+let startGen = 0 // only the latest start() may take over the screen
 
 export const useGame = create<Store>((set, get) => {
   const fail = (e: unknown) => get().notify(e instanceof Error ? e.message : String(e), 'error')
@@ -75,7 +78,7 @@ export const useGame = create<Store>((set, get) => {
     const events = fresh && f.events.length ? [...s.events, ...f.events].slice(-MAX_EVENTS) : s.events
     const history = fresh
       ? [...s.history, { tick: f.tick, good: f.score.good, fair: f.score.fair, poor: f.score.poor,
-          degraded: f.score.degraded_now }].slice(-MAX_HISTORY)
+          degraded: f.score.degraded_now, without: f.without_agent?.degraded_now ?? null }].slice(-MAX_HISTORY)
       : s.history
     set({ frame: f, events, history })
   }
@@ -110,7 +113,9 @@ export const useGame = create<Store>((set, get) => {
     introOpen: load(INTRO_KEY) !== '1',
     movable: null,
     tour: null,
-    setTour: (tour) => set({ tour }),
+    setTour: (tour) => set({ tour, demo: false }),
+    demo: false,
+    setDemo: (demo) => set({ demo, tour: null }),
 
     setMode(mode) { save(MODE_KEY, mode); set({ mode }) },
     setIntro(open) { if (!open) save(INTRO_KEY, '1'); set({ introOpen: open }) },
@@ -141,7 +146,9 @@ export const useGame = create<Store>((set, get) => {
         set({ connected: false })
         const old = get().sessionId
         if (old) api.stop(old).catch(() => {})
+        const gen = ++startGen
         const g = await api.newGame({ language_model: true, speed: 1, ...opts })
+        if (gen !== startGen) { api.stop(g.id).catch(() => {}); return } // a newer start() won: drop this game
         sessionStorage.setItem(SESSION_KEY, g.id)
         set({
           sessionId: g.id, scene: g.scene, frame: g.state, events: [], history: [], selected: null,

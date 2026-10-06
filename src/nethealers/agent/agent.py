@@ -361,7 +361,7 @@ class Agent:
             options = [option_view(i + 1, p, v, w.zones) for i, (p, v) in enumerate(viable)]
             pick = self.roles.plan(summary, options, objection)
             if not pick.ok:
-                self._escalate(inc, f"Planner: {pick.reason}")
+                self._hand_over(inc, f"Planner: {pick.reason}")
                 return "escalated"
             p, v = viable[pick.choice]
             self._say("plan", "planner", f"Planner picked: {p.text}. {pick.reason}", inc,
@@ -379,7 +379,7 @@ class Agent:
             viable = [x for i, x in enumerate(viable) if i != pick.choice]
             if not viable:
                 break
-        self._escalate(inc, "The planner and safety adviser could not agree on a change.")
+        self._hand_over(inc, "The planner and safety adviser could not agree on a change.")
         return "escalated"
 
     def _act(self, inc: Incident, p: Prediction) -> None:
@@ -592,6 +592,16 @@ class Agent:
         healthy = float(np.mean([self.monitor.healthy(u, df.loc[u, "sinr_db"], sat.loc[u]) for u in tg])) if tg else 1
         self._close(inc, "withdrawn", f"Checked after withdrawing: {healthy:.0%} of the phones are healthy"
                                       f"{'' if healthy >= 0.8 else '; the monitor will reopen if needed'}.")
+
+    def _hand_over(self, inc: Incident, why: str) -> None:
+        """Ask a person, but keep looking after fixes already in place (withdraw them when the cause goes away,
+        undo them if they breach a protected zone) instead of abandoning them."""
+        if inc.kept:
+            inc.status, inc.partial_escalated = "fixed", True
+            self._say("escalate", "safety", f"{why} Asking the operator about the remaining phones; the fixes already "
+                                            "made stay in place and are still watched.", inc)
+        else:
+            self._escalate(inc, why)
 
     def _escalate(self, inc: Incident, why: str) -> None:
         inc.status, inc.outcome, inc.closed_tick = "escalated", "escalated", self.world.tick
