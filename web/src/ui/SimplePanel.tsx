@@ -156,46 +156,105 @@ function StepTrack({ incident, events }: { incident: Incident; events: AgentEven
 
 // ---------------------------------------------------------------- 3. the digital-twin test
 
-interface Ranked { action: string; gain_db: number; harmed: number }
+interface Ranked { action: string; gain_db: number; harmed: number; data_gain?: number }
+interface Verdict { action: string; status: string; reasons: string[] }
 
+/**
+ * The digital-twin test in rank order. Every option keeps its true rank from the twin, and shows what happened to
+ * it: chosen, a safe alternative, blocked by the safety check (and why), or not checked because enough safe
+ * options were found higher up. The chosen fix is shown even when it ranked below the top three.
+ */
 function TwinTest({ events }: { events: AgentEvent[] }) {
-  const rehearse = [...events].reverse().find((e) => e.stage === 'rehearse' && e.agent === 'planner')
+  const rounds = events.filter((e) => e.stage === 'rehearse' && e.agent === 'planner')
+  const [pick, setPick] = useState<number | null>(null) // null = latest round
+  const n = pick !== null && pick < rounds.length ? pick : rounds.length - 1
+  const rehearse = rounds[n]
   if (!rehearse) return null
-  const after = events.filter((e) => e.tick >= rehearse.tick)
-  const ranked = ((rehearse.data.ranked as Ranked[] | undefined) ?? []).slice(0, 3)
-  const ruledOut = new Map(after.filter((e) => e.stage === 'check' && e.text.startsWith('Rejected'))
-    .map((e) => [String(e.data.action), ((e.data.reasons as string[] | undefined) ?? [])[0] ?? '']))
-  const chosen = String(after.find((e) => e.stage === 'act' || e.stage === 'plan' || e.stage === 'escalate')?.data.action ?? '')
-  const tried = rehearse.text.match(/Rehearsed (\d+)/)?.[1]
+  const after = events.filter((e) => e.tick === rehearse.tick && events.indexOf(e) > events.indexOf(rehearse))
+  const ranked = (rehearse.data.ranked as Ranked[] | undefined) ?? []
+  const summary = after.find((e) => e.stage === 'check' && Array.isArray(e.data.verdicts))
+  const verdicts = new Map(((summary?.data.verdicts as Verdict[] | undefined) ?? []).map((v) => [v.action, v]))
+  const shortlist = new Set((summary?.data.shortlist as string[] | undefined) ?? [])
+  const decided = after.find((e) => e.stage === 'act' || e.stage === 'plan' || (e.stage === 'escalate' && e.data.action))
+  const chosen = String(decided?.data.action ?? '')
+  const byAI = after.some((e) => e.stage === 'plan' && e.data.source && !String(e.data.source).startsWith('offline'))
+  const tested = Number(rehearse.data.tested ?? ranked.length)
+
+  const top = ranked.slice(0, 3).map((r, i) => ({ r, rank: i + 1 }))
+  const chosenRank = ranked.findIndex((r) => r.action === chosen)
+  const extra = chosenRank >= 3 ? { r: ranked[chosenRank], rank: chosenRank + 1 } : null
+
+  const status = (r: Ranked) => {
+    const v = verdicts.get(r.action)
+    if (r.action === chosen) {
+      const how = shortlist.size <= 1 ? 'Chosen: the only option that passed the safety check'
+        : byAI ? `Chosen: the AI planner picked it from ${shortlist.size} options that passed the safety check`
+          : 'Chosen: the highest-ranked option that passed the safety check'
+      const waiting = decided?.stage === 'escalate' ? ' (waiting for your approval)' : ''
+      return { tone: 'picked', text: how + waiting }
+    }
+    if (shortlist.has(r.action)) return { tone: 'ok', text: 'Passed the safety check (safe alternative, not chosen)' }
+    if (v?.status === 'rejected') return { tone: 'blocked', text: `Blocked by safety check: ${shortReason(v.reasons[0] ?? '')}` }
+    if (v) return { tone: 'ok', text: 'Passed the safety check' }
+    return { tone: 'muted', text: 'Not checked: enough safe options were found higher up' }
+  }
+
+  const row = ({ r, rank }: { r: Ranked; rank: number }) => {
+    const st = status(r)
+    const style = st.tone === 'picked' ? 'bg-emerald-500/15 text-emerald-100 ring-1 ring-emerald-500/60'
+      : st.tone === 'blocked' ? 'bg-slate-950/50 text-slate-500' : 'bg-slate-950/50 text-slate-300'
+    const note = st.tone === 'picked' ? 'text-emerald-300/90' : st.tone === 'blocked' ? 'text-amber-300/80' : 'text-slate-500'
+    return (
+      <li key={r.action} className={`rounded-lg px-3 py-2 text-sm ${style}`}>
+        <div className="flex items-start justify-between gap-2">
+          <span className="flex items-start gap-2">
+            <span className={`mt-px grid h-5 min-w-5 shrink-0 place-items-center rounded-full px-1 text-[11px] font-bold
+              ${st.tone === 'picked' ? 'bg-emerald-500 text-emerald-950' : 'bg-slate-700 text-slate-200'}`}>{rank}</span>
+            <span>{st.tone === 'picked' ? '✔ ' : st.tone === 'blocked' ? '✕ ' : ''}{plainAction(r.action)}</span>
+          </span>
+          <span className="shrink-0 text-right text-xs">
+            {r.gain_db >= 0 ? '+' : ''}{r.gain_db.toFixed(1)} dB
+            <span className="block text-[10px] text-slate-500">{r.harmed ? `${r.harmed} other worse` : 'no one worse'}</span>
+          </span>
+        </div>
+        <div className={`mt-0.5 pl-7 text-xs ${note}`}>{st.text}</div>
+      </li>
+    )
+  }
+
   return (
     <Box tour="twin">
-      <Kicker>Tested on the digital twin · ranked best first</Kicker>
+      <div className="flex items-center justify-between gap-2">
+        <Kicker>Tested on the digital twin · ranked best first</Kicker>
+        {rounds.length > 1 && (
+          <div className="mb-1.5 flex gap-1">
+            {rounds.map((r, i) => (
+              <button key={i} onClick={() => setPick(i === rounds.length - 1 ? null : i)} title={`Round ${i + 1} at t = ${r.tick} s`}
+                className={`chip ${i === n ? 'bg-sky-500 text-sky-950' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}>
+                Round {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {rounds.length > 1 && (
+        <p className="mb-1 text-xs text-slate-500">
+          Round {n + 1} of {rounds.length}, at t = {rehearse.tick} s{n > 0 ? ' (after the previous fix, for the users still affected)' : ''}.
+        </p>
+      )}
       <p className="mb-3 text-sm text-slate-400">
-        {tried ? `${tried} fixes` : 'Several fixes'} were tried on a virtual copy of the street first, then ranked by
-        predicted improvement (#1 = best). The agent goes down the list and takes the first one that passes the safety check.
+        {tested} fixes were tried on a virtual copy of the street and ranked by overall benefit: predicted signal gain
+        and data-rate gain for the affected users, minus a penalty for every other user made worse. The safety check
+        then goes down this list.
       </p>
       <ul className="space-y-1.5">
-        {ranked.map((r, i) => {
-          const why = ruledOut.get(r.action)
-          const picked = r.action === chosen && !why
-          return (
-            <li key={r.action} className={`rounded-lg px-3 py-2 text-sm ${picked ? 'bg-emerald-500/15 text-emerald-100 ring-1 ring-emerald-500/60'
-              : why ? 'bg-slate-950/50 text-slate-500' : 'bg-slate-950/50 text-slate-300'}`}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex items-start gap-2">
-                  <span className={`mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold
-                    ${picked ? 'bg-emerald-500 text-emerald-950' : why ? 'bg-slate-800 text-slate-500' : 'bg-slate-700 text-slate-200'}`}>
-                    {i + 1}
-                  </span>
-                  <span>{picked ? '✔ ' : why ? '✕ ' : ''}{plainAction(r.action)}</span>
-                </span>
-                <span className="shrink-0 text-xs">{r.gain_db >= 0 ? '+' : ''}{r.gain_db.toFixed(0)} dB</span>
-              </div>
-              {why && <div className="mt-0.5 pl-7 text-xs text-amber-300/80">Blocked by safety check: {shortReason(why)}</div>}
-              {picked && <div className="mt-0.5 pl-7 text-xs text-emerald-300/80">Chosen: the highest-ranked fix that passed every safety check</div>}
-            </li>
-          )
-        })}
+        {top.map(row)}
+        {extra && (
+          <>
+            {extra.rank > 4 && <li className="pl-3 text-xs text-slate-600">⋮ ranks 4–{extra.rank - 1} not shown</li>}
+            {row(extra)}
+          </>
+        )}
       </ul>
     </Box>
   )

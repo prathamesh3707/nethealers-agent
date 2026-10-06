@@ -309,15 +309,16 @@ class Agent:
                 self._say("rehearse", "planner",
                           f"Rehearsed {len(preds)} fixes on the twin. Best: {b.text} "
                           f"({b.gain_db:+.1f} dB for these phones, {b.harmed} other phone(s) worse).", inc,
-                          {"ranked": [_pred_dict(p) for p in preds[:6]]})
+                          {"ranked": [_pred_dict(p) for p in preds[:30]], "tested": len(preds)})
         else:
             preds = [Prediction(a, describe(w, a), float("nan"), 0.0, float("nan"), 0, 0.0) for a in acts]
 
-        viable, rejected_shown = [], 0
+        viable, rejected_shown, verdicts = [], 0, []
         for p in preds:
             v = self.rules.check(p.action, w, w.tick, pred=p if self.mode == "twin" else None,
                                  confidence=inc.confidence if self.diagnoser else 1.0,
                                  twin_error_db=self.trust.get(inc.main_tower), stale_share=stale_share)
+            verdicts.append({"action": p.text, "status": v.status, "reasons": list(v.reasons)})
             if v.status == "rejected":
                 if rejected_shown < 2:
                     self._say("check", "safety", f"Rejected: {p.text}, because {'; '.join(v.reasons)}.", inc,
@@ -327,6 +328,10 @@ class Agent:
             viable.append((p, v))
             if len(viable) == (4 if self.roles is not None else 1):
                 break
+        # The safety check goes down the twin's ranking and stops once it has enough safe options;
+        # record every verdict so the screen can show each option's fate in rank order.
+        self._say("check", "safety", f"Safety check: {len(viable)} of the {len(verdicts)} best-ranked fixes passed.",
+                  inc, {"verdicts": verdicts, "shortlist": [p.text for p, _ in viable]})
         chosen = self._choose(inc, viable) if viable else None
         if chosen == "escalated":
             return None
@@ -698,7 +703,7 @@ def _phones_moved(w: World, a: Action, phones: list[int]) -> bool:
 
 
 def _pred_dict(p: Prediction) -> dict:
-    return {"action": p.text, "gain_db": round(p.gain_db, 1), "harmed": p.harmed,
+    return {"action": p.text, "gain_db": round(p.gain_db, 1), "harmed": p.harmed, "data_gain": round(p.sat_gain, 2),
             "zone_loads": {k: round(v, 2) for k, v in p.zone_loads.items()}, "score": round(p.score, 1)}
 
 
