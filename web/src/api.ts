@@ -79,7 +79,8 @@ export const api = {
   state: (id: string) => call<Frame>('GET', `/sessions/${id}/state`),
   events: (id: string) => call<AgentEvent[]>('GET', `/sessions/${id}/events`),
   incident: (id: string, inc: string) => call<{ events: AgentEvent[] }>('GET', `/sessions/${id}/incidents/${inc}`),
-  addProblem: (id: string, p: NewProblem) => call<{ id: string }>('POST', `/sessions/${id}/problems`, p),
+  addProblem: (id: string, p: NewProblem) =>
+    call<{ id: string; x?: number; y?: number }>('POST', `/sessions/${id}/problems`, p),
   removeProblem: (id: string, pid: string) => call('DELETE', `/sessions/${id}/problems/${pid}`),
   moveProblem: (id: string, pid: string, x: number, y: number) =>
     call('POST', `/sessions/${id}/problems/${pid}/move`, { x, y }),

@@ -60,6 +60,7 @@ interface ToolDef { tool: NonNullable<Tool>; icon: string; label: string; hint: 
 const TOOLS: ToolDef[] = [
   { tool: { kind: 'bus', drive: true }, icon: '🚌', label: 'Bus', hint: 'Parks where you click; move it with ◀ ▶', cause: 'blockage' },
   { tool: { kind: 'truck', drive: true }, icon: '🚚', label: 'Truck', hint: 'Parks where you click; move it with ◀ ▶', cause: 'blockage' },
+  { tool: { kind: 'car', drive: true }, icon: '🚗', label: 'Car', hint: 'Small and low: blocks only phones right behind it', cause: 'blockage' },
   { tool: { kind: 'crowd' }, icon: '👥', label: 'Crowd', hint: 'People standing in the signal path', cause: 'blockage' },
   { tool: { kind: 'hoarding' }, icon: '🪧', label: 'Hoarding', hint: 'A new advertising board', cause: 'blockage' },
   { tool: { kind: 'stuck_beam' }, icon: '🔦', label: 'Stuck beam', hint: 'Nearby phones get a badly aimed beam', cause: 'wrong beam' },

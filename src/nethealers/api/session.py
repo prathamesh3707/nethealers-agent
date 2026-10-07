@@ -32,15 +32,17 @@ from ..sim import (
     station_road,
     stick_beams,
 )
+from ..sim import space
 from ..sim.config import BLOCKER_TYPES
 from ..sim.world import World
 
 BLOCKERS = tuple(BLOCKER_TYPES)
-VEHICLES = {"bus", "truck", "car"}
+VEHICLES = space.VEHICLES
 WARMUP_TICKS = 8
 DRIVE_IN_M = 40.0  # a driven vehicle appears this far up the road and arrives over a few seconds
 DRIVE_STEP_M = 10.0
 LEAVE_STEP_M = 15.0
+MAX_WAIT_TICKS = 20  # a driving vehicle stuck behind something this long turns off the street
 log = logging.getLogger("nethealers.session")
 
 
@@ -80,6 +82,7 @@ class Session:
     baseline: dict = field(default_factory=dict)  # phone id -> its normal clarity, for the score
     rescued: set = field(default_factory=set)
     routes: dict = field(default_factory=dict)  # problem id -> remaining (x, y) positions, one per tick; None = remove
+    waiting: dict = field(default_factory=dict)  # problem id -> ticks spent queued behind something
     error: str | None = None  # the last tick that failed; the game pauses so nothing runs on a broken state
     tick_ms: float = 0.0  # wall time of the latest tick (street + agent)
     # The same street with the same problems but no agent: what would have happened without it.
@@ -160,9 +163,25 @@ class Session:
             nxt = route.pop(0)
             if nxt is None:
                 self.routes.pop(pid)
+                self.waiting.pop(pid, None)
                 self._clear(pid)
-            else:
+            elif self._fits(pid, *nxt):
+                self.waiting.pop(pid, None)
                 self._move(pid, *nxt)
+            else:  # something is in the way: queue behind it, or give up and turn off the street
+                self.waiting[pid] = self.waiting.get(pid, 0) + 1
+                if self.waiting[pid] >= MAX_WAIT_TICKS:
+                    self.routes.pop(pid)
+                    self.waiting.pop(pid)
+                    self._clear(pid)
+                else:
+                    route.insert(0, nxt)
+
+    def _fits(self, pid: str, x: float, y: float) -> bool:
+        """Would the blocker `pid`, centred at (x, y), stay clear of everything else?"""
+        b = self.world.box(pid)
+        hl, hw = (b.xmax - b.xmin) / 2, (b.ymax - b.ymin) / 2
+        return not space.blocking(self.world, (x - hl, x + hl, y - hw, y + hw), ignore=pid)
 
     def _move(self, pid: str, x: float, y: float) -> None:
         move_blocker(self.world, pid, x, y)
@@ -287,7 +306,11 @@ class Session:
             raise ValueError(f"no tower {kw.get('tower')}")
         with self.lock:
             drive = bool(kw.get("drive", False)) and kind in BLOCKERS and kind in VEHICLES
+            if kind in BLOCKERS:
+                x = self._spot_for(kind, float(x), float(y), bool(kw.get("along_y", False)))
             start_x = max(w.extent[0], float(x) - DRIVE_IN_M) if drive else (float(x) if x is not None else None)
+            if drive:
+                start_x = space.free_spot(w, kind, start_x, float(y), bool(kw.get("along_y", False)), search=30) or x
             if kind == "stuck_beam":
                 ids = kw.get("phones") or self._phones_near(x, y, 25)[:8]
                 known = set(w.ue_index())
@@ -303,7 +326,24 @@ class Session:
                 route += [(float(x), float(y))] * max(0, int(kw.get("stay", 25)))
                 route += [(min(w.extent[1], float(x) + LEAVE_STEP_M * k), float(y)) for k in range(1, 4)]
                 self.routes[p.id] = route + [None]
-            return {"id": p.id, "label": p.label, "kind": p.kind}
+            out = {"id": p.id, "label": p.label, "kind": p.kind}
+            if kind in BLOCKERS:
+                out.update(x=float(x), y=float(y))  # where it actually went (a vehicle may have slid along the lane)
+            return out
+
+    def _spot_for(self, kind: str, x: float, y: float, along_y: bool) -> float:
+        """Where a new blocker goes: vehicles slide along the lane to the nearest free spot; anything
+        else must fit where it was put."""
+        w = self.world
+        if kind in VEHICLES:
+            spot = space.free_spot(w, kind, x, y, along_y)
+            if spot is None:
+                raise ValueError(f"No room for a {kind} here: the road is full nearby.")
+            return spot
+        hit = space.blocking(w, space.footprint(kind, x, y, along_y))
+        if hit:
+            raise ValueError(f"That spot is taken by {space.describe(w, hit)}. Pick an open space.")
+        return x
 
     @staticmethod
     def _create(w: World, kind: str, x, y, kw: dict):
@@ -335,8 +375,22 @@ class Session:
             if "box" not in p.detail:
                 raise ValueError(f"{p.kind} can't be moved")
             self.routes.pop(problem_id, None)
+            self.waiting.pop(problem_id, None)
             x0, x1, y0, y1 = self.world.extent
-            self._move(problem_id, min(max(float(x), x0), x1), min(max(float(y), y0), y1))
+            x, y = min(max(float(x), x0), x1), min(max(float(y), y0), y1)
+            box = self.world.box(p.detail["box"])
+            cx, cy = (box.xmin + box.xmax) / 2, (box.ymin + box.ymax) / 2
+            if p.kind in VEHICLES and abs(y - cy) < 0.01:
+                # Drive along the lane and stop just short of whatever is in front.
+                if self._fits(problem_id, cx, cy):
+                    x = space.reachable_x(self.world, problem_id, x)
+                elif not self._fits(problem_id, x, y):
+                    raise ValueError("That spot is taken. Move it somewhere open.")
+            elif not self._fits(problem_id, x, y):
+                hl, hw = (box.xmax - box.xmin) / 2, (box.ymax - box.ymin) / 2
+                hit = space.blocking(self.world, (x - hl, x + hl, y - hw, y + hw), ignore=problem_id)
+                raise ValueError(f"That spot is taken by {space.describe(self.world, hit)}.")
+            self._move(problem_id, x, y)
 
     def send_away(self, problem_id: str) -> None:
         """A parked vehicle leaves (or a blocker is lifted away) on the next tick. It is taken off the street

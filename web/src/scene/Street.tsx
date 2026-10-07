@@ -5,6 +5,8 @@ import * as THREE from 'three'
 import type { Blocker, Building, Phone, Scene, Tower, Zone } from '../api'
 import { BAND_COLOR } from '../stages'
 import { useFocusedIncident, useGame } from '../store'
+import { freeSpot, headingFor, isVehicle, laneY, VEHICLE_SIZE, type Rect } from './vehicleGeometry'
+import { Vehicle } from './Vehicles'
 
 // Simulator metres (x east, y north, z up) -> three.js (x right, y up, z toward the viewer).
 const CX = 200
@@ -68,6 +70,7 @@ function Ground({ extent }: { extent: [number, number, number, number] }) {
   const tool = useGame((s) => s.tool)
   const place = useGame((s) => s.place)
   const [hover, setHover] = useState<THREE.Vector3 | null>(null)
+  const vehicleTool = tool && isVehicle(tool.kind) ? tool.kind : null
   const [x0, x1, y0, y1] = extent
   const w = x1 - x0
   const h = y1 - y0
@@ -101,12 +104,44 @@ function Ground({ extent }: { extent: [number, number, number, number] }) {
       {Array.from({ length: Math.floor(w / 12) }, (_, i) => (
         <Strip key={i} x0={x0 + i * 12 + 2} x1={x0 + i * 12 + 7} y0={99.7} y1={100.3} color="#64748b" h={0.03} />
       ))}
-      {hover && tool && (
+      {hover && tool && !vehicleTool && (
         <mesh position={[hover.x, 0.3, hover.z]} rotation-x={-Math.PI / 2}>
           <ringGeometry args={[3, 4.2, 32]} />
           <meshBasicMaterial color="#fbbf24" transparent opacity={0.9} />
         </mesh>
       )}
+      {hover && vehicleTool && <PlacementGhost kind={vehicleTool} at={toWorld(hover)} extent={[x0, x1]} />}
+    </group>
+  )
+}
+
+/**
+ * A see-through vehicle that follows the mouse, already snapped to the lane and slid to where the server
+ * will actually park it: green where you point, amber if it has to move along to a free spot, red if the
+ * road is full there.
+ */
+function PlacementGhost({ kind, at, extent }: { kind: 'bus' | 'truck' | 'car'; at: { x: number; y: number }; extent: [number, number] }) {
+  const blockers = useGame((s) => s.frame?.blockers)
+  const buildings = useGame((s) => s.scene?.buildings)
+  const y = laneY(at.y)
+  const spot = useMemo(() => {
+    const rects: Rect[] = (blockers ?? []).map((b) => ({ x0: b.x0, x1: b.x1, y0: b.y0, y1: b.y1 }))
+    const walls: Rect[] = (buildings ?? []).map((b) => ({ x0: b.x0, x1: b.x1, y0: b.y0, y1: b.y1 }))
+    return freeSpot(kind, at.x, y, rects, walls, extent)
+  }, [kind, at.x, y, blockers, buildings, extent])
+  const x = spot ?? at.x
+  const slid = spot !== null && Math.abs(spot - at.x) > 0.25
+  const tint = spot === null ? '#ef4444' : slid ? '#f59e0b' : '#22c55e'
+  const { length, width } = VEHICLE_SIZE[kind]
+  return (
+    <group position={toV(x, y)}>
+      <Vehicle kind={kind} heading={headingFor(x - length / 2, x + length / 2, y - width / 2, y + width / 2)}
+        opacity={0.45} tint={tint} />
+      <Html zIndexRange={[20, 0]} position={[0, VEHICLE_SIZE[kind].height + 3, 0]} center className="pointer-events-none">
+        <div className="label whitespace-nowrap" style={{ color: tint }}>
+          {spot === null ? 'No room here' : slid ? `Moves ${Math.abs(spot - at.x).toFixed(0)} m to a free spot` : 'Click to park here'}
+        </div>
+      </Html>
     </group>
   )
 }
@@ -330,25 +365,54 @@ function PhoneDot({ p, focused }: { p: Phone; focused: boolean }) {
 
 function BlockerBox({ b }: { b: Blocker }) {
   const ref = useRef<THREE.Group>(null)
+  const selected = useGame((s) => s.movable === b.id)
   const target = toV((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2)
   // glide between ticks so a driving bus moves smoothly instead of jumping 10 m a second
   useFrame((_, dt) => {
     if (ref.current) ref.current.position.lerp(target, Math.min(1, dt * 3))
   })
   const color = BLOCKER_COLOR[b.kind] ?? '#f87171'
+  const vehicle = isVehicle(b.kind)
   return (
     <group ref={ref} position={target}>
-      <mesh position={[0, b.height / 2, 0]} castShadow>
-        <boxGeometry args={[b.x1 - b.x0, b.height, b.y1 - b.y0]} />
-        <meshStandardMaterial color={color} transparent={b.hidden} opacity={b.hidden ? 0.45 : 1}
-          emissive={color} emissiveIntensity={0.15} />
-      </mesh>
+      {vehicle ? (
+        <Vehicle kind={b.kind as 'bus' | 'truck' | 'car'} id={b.id} heading={headingFor(b.x0, b.x1, b.y0, b.y1)}
+          opacity={b.hidden ? 0.45 : 1} />
+      ) : (
+        <mesh position={[0, b.height / 2, 0]} castShadow>
+          <boxGeometry args={[b.x1 - b.x0, b.height, b.y1 - b.y0]} />
+          <meshStandardMaterial color={color} transparent={b.hidden} opacity={b.hidden ? 0.45 : 1}
+            emissive={color} emissiveIntensity={0.15} />
+        </mesh>
+      )}
+      {selected && <Footprint w={b.x1 - b.x0} d={b.y1 - b.y0} />}
       <Html zIndexRange={[20, 0]} position={[0, b.height + 3, 0]} center className="pointer-events-none">
-        <div data-tour="blocker" className="label whitespace-nowrap font-semibold" style={{ color }}>
-          {b.kind === 'bus' ? '🚌' : b.kind === 'truck' ? '🚚' : b.kind === 'car' ? '🚗' : b.kind === 'crowd' ? '👥' : '⬛'}{' '}
-          {b.kind}{b.hidden ? ' (twin can’t see)' : ''}
+        <div data-tour="blocker" className={`label whitespace-nowrap font-semibold ${vehicle && !selected ? 'opacity-70' : ''}`}
+          style={{ color: vehicle ? '#e2e8f0' : color }}>
+          {vehicle ? '' : b.kind === 'crowd' ? '👥 ' : '⬛ '}
+          {b.kind}{b.hidden ? ' (twin can’t see)' : ''}{selected ? ' · ◀ ▶ moves it' : ''}
         </div>
       </Html>
+    </group>
+  )
+}
+
+/** Amber outline on the ground around the blocker the arrow buttons will move. */
+function Footprint({ w, d }: { w: number; d: number }) {
+  const pad = 0.8
+  const edge = 0.25
+  const parts: [number, number, number, number][] = [
+    [0, -(d / 2 + pad), w + 2 * pad, edge], [0, d / 2 + pad, w + 2 * pad, edge],
+    [-(w / 2 + pad), 0, edge, d + 2 * pad], [w / 2 + pad, 0, edge, d + 2 * pad],
+  ]
+  return (
+    <group position={[0, 0.06, 0]}>
+      {parts.map(([x, z, sx, sz], i) => (
+        <mesh key={i} position={[x, 0, z]} rotation-x={-Math.PI / 2}>
+          <planeGeometry args={[sx, sz]} />
+          <meshBasicMaterial color="#fbbf24" />
+        </mesh>
+      ))}
     </group>
   )
 }

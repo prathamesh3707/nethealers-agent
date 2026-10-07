@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { create } from 'zustand'
 import { api, ApiError, liveUrl, type AgentEvent, type Frame, type Incident, type NewGame, type NewProblem, type Scene } from './api'
+import { laneY } from './scene/vehicleGeometry'
 
 export type Tool =
   | { kind: 'bus' | 'truck' | 'car'; drive: boolean }
@@ -193,7 +194,7 @@ export const useGame = create<Store>((set, get) => {
       const p: NewProblem = { kind: tool.kind, x, y }
       if ('drive' in tool) {
         // vehicles stay in a lane of Station Road
-        p.y = y > 100 ? 107.8 : 92.2
+        p.y = laneY(y)
         p.drive = false // vehicles park where you click; move them with the arrow buttons
       } else if (tool.kind === 'misconfig') {
         const nearest = [...frame.towers].sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0]
@@ -212,6 +213,9 @@ export const useGame = create<Store>((set, get) => {
       try {
         const r = await api.addProblem(id, p)
         if (BOX_KINDS.has(p.kind)) set({ movable: r.id }) // the arrow controls now move what was just placed
+        if (r.x != null && p.x != null && Math.abs(r.x - p.x) > 0.5) {
+          get().notify(`That spot was taken, so the ${p.kind} parked ${Math.abs(r.x - p.x).toFixed(0)} m along the lane.`)
+        }
       } catch (e) {
         fail(e)
       }
