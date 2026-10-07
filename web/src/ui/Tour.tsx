@@ -29,6 +29,13 @@ const STEPS: Step[] = [
       + 'The clock shows simulated time; one tick is one second, and the agent takes one turn every tick.',
   },
   {
+    targets: ['policy'],
+    title: 'Policy and knowledge base',
+    body: 'Opens the gap analysis and the knowledge base behind it: what India’s laws, ITU-T standards, global examples '
+      + '(EU, US, Singapore) and neighbouring countries (Sri Lanka, Bangladesh, Nepal) say about an AI agent running a '
+      + '5G network, where they fall short, and every source passage. You can also search the knowledge base.',
+  },
+  {
     targets: ['mode'],
     title: 'Simple and Expert views',
     body: 'Simple (now) uses plain language and shows only the main problem. Expert shows everything: every agent step '

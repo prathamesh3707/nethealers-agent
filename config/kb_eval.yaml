@@ -1,0 +1,65 @@
+# Retrieval test set for the knowledge base: a question and the document(s) that should answer it.
+# scripts/eval_library.py reports recall@k (the right document in the top k passages) and MRR.
+# Written by hand from what each document covers; not tuned to the index.
+
+# Host country (India)
+- q: Who must a data fiduciary inform if there is a personal data breach?
+  docs: [dpdp-act-2023]
+- q: When may personal data be processed without consent for certain legitimate uses?
+  docs: [dpdp-act-2023]
+- q: Can the government intercept messages or take over telecom services during a public emergency?
+  docs: [telecom-act-2023]
+- q: Is an authorisation needed to provide telecommunication services or establish a network?
+  docs: [telecom-act-2023]
+- q: Should an independent statutory body regulate responsible use of AI across sectors?
+  docs: [trai-ai-2023]
+- q: Regulatory sandbox for testing AI-based use cases in telecom
+  docs: [trai-ai-2023]
+- q: Principle of accountability for AI systems and who is responsible for their outcomes
+  docs: [niti-rai-2021]
+- q: Principle of safety and reliability of AI systems
+  docs: [niti-rai-2021]
+
+# Operator policy
+- q: What is the largest single power change the agent may make on its own?
+  docs: [operator-policy]
+- q: Must the hospital zone tower keep spare capacity?
+  docs: [operator-policy]
+
+# Standards
+- q: ML pipeline with source, collector, preprocessor, model, policy, distributor and sink nodes
+  docs: [itu-y3172]
+- q: Machine learning function orchestrator that manages ML pipelines in the network
+  docs: [itu-y3172]
+- q: Sandbox where ML models are trained and verified before being deployed in the live network
+  docs: [itu-y3181]
+- q: Requirements and architecture of a digital twin network
+  docs: [itu-y3090]
+
+# Global examples
+- q: AI used as a safety component in the management and operation of critical digital infrastructure is high-risk
+  docs: [eu-ai-act]
+- q: Human oversight measures so people can intervene or stop a high-risk AI system
+  docs: [eu-ai-act]
+- q: Automatic recording of events (logs) over the lifetime of a high-risk AI system
+  docs: [eu-ai-act]
+- q: AI regulatory sandboxes set up by national authorities
+  docs: [eu-ai-act]
+- q: Govern, map, measure and manage functions for AI risk
+  docs: [nist-ai-rmf]
+- q: Characteristics of trustworthy AI such as valid and reliable, safe, secure and resilient
+  docs: [nist-ai-rmf]
+- q: Human-in-the-loop, human-over-the-loop and human-out-of-the-loop levels of human involvement
+  docs: [sg-model-ai-gov]
+- q: Probability and severity of harm used to decide the level of human involvement
+  docs: [sg-model-ai-gov]
+
+# Neighbouring countries
+- q: Data Protection Authority powers in Sri Lanka
+  docs: [lk-pdpa-2022]
+- q: Right of a data subject to withdraw consent and request erasure
+  docs: [lk-pdpa-2022, dpdp-act-2023]
+- q: Functions and powers of the Bangladesh Telecommunication Regulatory Commission
+  docs: [bd-telecom-act-2001]
+- q: Licence issued by the Nepal Telecommunications Authority to operate telecommunication service
+  docs: [np-telecom-act-1997]

@@ -1,0 +1,86 @@
+# Policy, strategy and standards questions an autonomous self-healing 5G agent runs into.
+# scripts/gap_analysis.py searches the knowledge base for each: what the host country's documents say, what the
+# standards say, how other jurisdictions and neighbouring countries handle it; then names the gap.
+# `queries` are extra phrasings in the documents' own legal language, so a provision isn't missed just because the
+# question is worded differently. `seen_in` links each question to where our own agent meets it, so every gap is grounded in the simulation.
+
+- id: accountability
+  title: Accountability for autonomous network changes
+  question: Who is legally accountable when an AI system automatically changes the configuration of a live telecommunication network and something goes wrong?
+  queries:
+    - liability of the licensee or authorised entity for its telecommunication network and services
+    - accountability of AI systems and who is responsible for their outcomes
+  seen_in: Every applied fix (handover, power, tilt). The agent logs each change, but the law does not say whether the operator, the AI vendor or the person who approved it answers for the outcome.
+
+- id: human-oversight
+  title: Required level of human oversight for AI in telecom networks
+  question: What level of human oversight or approval is required before an AI system may act on critical telecommunication infrastructure?
+  queries:
+    - human oversight and human control over automated or AI systems
+    - level of human involvement in AI-augmented decision-making
+  seen_in: The operator policy lets the agent make small changes alone and asks a person for larger ones (power above 1 dB, tilt above 1 degree). These thresholds are the operator's own choice, not set by any rule.
+
+- id: emergency-priority
+  title: Priority for emergency and health services
+  question: May a network operator reserve or prioritise capacity for hospitals and emergency services, and who decides or attests that traffic is urgent?
+  queries:
+    - messages of users authorised for response and recovery during public emergency routed on priority
+    - public emergency, disaster management or public safety powers over telecommunication services
+  seen_in: The protected hospital zone. The agent refused to hand users onto the hospital's tower, even when that would have helped them, to keep spare capacity for emergencies.
+
+- id: location-data
+  title: Personal data in network telemetry
+  question: Are phone signal measurements and approximate location used for automated network troubleshooting personal data, and what consent, purpose limits and retention apply?
+  queries:
+    - processing of personal data, consent and legitimate uses
+    - retention and erasure of personal data and purpose limitation
+    - traffic data or location data of users of telecommunication services
+  seen_in: The agent uses per-phone signal reports and rough positions to detect and diagnose problems, and keeps them in its decision log.
+
+- id: sandbox-testing
+  title: Testing AI in a sandbox or digital twin before deployment
+  question: Do rules require or support testing AI systems in a regulatory sandbox or a digital twin before they act on a live network?
+  queries:
+    - regulatory sandbox to test new technologies and AI use cases
+    - testing and validation of AI models before deployment
+  seen_in: Every fix is first rehearsed on the digital twin; the twin's error is measured and fixes that fall short are undone.
+
+- id: auditability
+  title: Logging and explanation of automated decisions
+  question: What record-keeping, logging and explanation obligations apply to automated decisions made by AI systems?
+  queries:
+    - records, logs and reports that licensees must maintain and provide to the authority
+    - transparency and explainability of AI decisions
+  seen_in: The decision log records every step with evidence, timing, the twin's ranking, each safety verdict and the AI planner's reasoning.
+
+- id: standards-adoption
+  title: Adoption of ITU-T standards for ML in networks
+  question: Do national telecom rules reference or require international standards for machine learning in networks, such as an ML pipeline, ML sandbox or digital twin network?
+  queries:
+    - power to notify standards for telecommunication equipment, networks and services
+    - conformity assessment and certification against standards
+  seen_in: The agent's pipeline follows ITU-T Y.3172 (source to sink), its twin plays the role of the Y.3181 sandbox and Y.3090 digital twin network.
+
+- id: cross-border
+  title: Cross-border coordination
+  question: How are interference, outages and network management coordinated across national borders and between regulators of neighbouring countries?
+  queries:
+    - cross-border coordination, international agreements and spectrum interference
+    - harmful interference to telecommunication networks and its prevention
+  seen_in: An outside interferer (the illegal booster) cannot be fixed by any network setting; near a border, its source could be in another country.
+
+- id: ai-security
+  title: Security of AI agents operating networks
+  question: What cybersecurity obligations apply to AI systems that control network infrastructure, including protection against manipulation of their data or instructions?
+  queries:
+    - cyber security of telecommunication networks and services
+    - protection against tampering, unauthorised access and interference with networks
+  seen_in: The agent treats documents and telemetry as evidence, never as instructions, rejects stale reports and detects towers that ignore commands.
+
+- id: energy
+  title: Energy use and efficiency of AI-managed networks
+  question: Are there obligations or incentives for energy efficiency and sustainability of telecommunication networks and the AI systems that manage them?
+  queries:
+    - energy efficiency, sustainability and environmental impact of telecom networks and AI
+    - green telecom and power consumption of network infrastructure
+  seen_in: The agent may not switch cells off; an energy-saving mode (sleeping spare capacity at quiet hours) is a planned extension.

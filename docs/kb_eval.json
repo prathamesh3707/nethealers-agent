@@ -1,0 +1,168 @@
+{
+ "questions": 26,
+ "recall_at": {
+  "1": 0.8076923076923077,
+  "3": 0.9230769230769231,
+  "5": 0.9230769230769231
+ },
+ "mrr": 0.8589743589743589,
+ "scoped_recall_at_3": 1.0,
+ "rows": [
+  {
+   "q": "Who must a data fiduciary inform if there is a personal data breach?",
+   "expected": "dpdp-act-2023",
+   "rank": 1,
+   "top": "dpdp-act-2023 p.7"
+  },
+  {
+   "q": "When may personal data be processed without consent for certain legitimate uses?",
+   "expected": "dpdp-act-2023",
+   "rank": null,
+   "top": "lk-pdpa-2022 p.56"
+  },
+  {
+   "q": "Can the government intercept messages or take over telecom services during a public emergency?",
+   "expected": "telecom-act-2023",
+   "rank": 1,
+   "top": "telecom-act-2023 p.9"
+  },
+  {
+   "q": "Is an authorisation needed to provide telecommunication services or establish a network?",
+   "expected": "telecom-act-2023",
+   "rank": 1,
+   "top": "telecom-act-2023 p.3"
+  },
+  {
+   "q": "Should an independent statutory body regulate responsible use of AI across sectors?",
+   "expected": "trai-ai-2023",
+   "rank": 1,
+   "top": "trai-ai-2023 p.52"
+  },
+  {
+   "q": "Regulatory sandbox for testing AI-based use cases in telecom",
+   "expected": "trai-ai-2023",
+   "rank": null,
+   "top": "eu-ai-act p.125"
+  },
+  {
+   "q": "Principle of accountability for AI systems and who is responsible for their outcomes",
+   "expected": "niti-rai-2021",
+   "rank": 2,
+   "top": "trai-ai-2023 p.27"
+  },
+  {
+   "q": "Principle of safety and reliability of AI systems",
+   "expected": "niti-rai-2021",
+   "rank": 3,
+   "top": "nist-ai-rmf p.19"
+  },
+  {
+   "q": "What is the largest single power change the agent may make on its own?",
+   "expected": "operator-policy",
+   "rank": 1,
+   "top": "operator-policy p.0"
+  },
+  {
+   "q": "Must the hospital zone tower keep spare capacity?",
+   "expected": "operator-policy",
+   "rank": 1,
+   "top": "operator-policy p.0"
+  },
+  {
+   "q": "ML pipeline with source, collector, preprocessor, model, policy, distributor and sink nodes",
+   "expected": "itu-y3172",
+   "rank": 1,
+   "top": "itu-y3172 p.25"
+  },
+  {
+   "q": "Machine learning function orchestrator that manages ML pipelines in the network",
+   "expected": "itu-y3172",
+   "rank": 2,
+   "top": "itu-y3181 p.10"
+  },
+  {
+   "q": "Sandbox where ML models are trained and verified before being deployed in the live network",
+   "expected": "itu-y3181",
+   "rank": 1,
+   "top": "itu-y3181 p.10"
+  },
+  {
+   "q": "Requirements and architecture of a digital twin network",
+   "expected": "itu-y3090",
+   "rank": 1,
+   "top": "itu-y3090 p.7"
+  },
+  {
+   "q": "AI used as a safety component in the management and operation of critical digital infrastructure is high-risk",
+   "expected": "eu-ai-act",
+   "rank": 1,
+   "top": "eu-ai-act p.52"
+  },
+  {
+   "q": "Human oversight measures so people can intervene or stop a high-risk AI system",
+   "expected": "eu-ai-act",
+   "rank": 1,
+   "top": "eu-ai-act p.72"
+  },
+  {
+   "q": "Automatic recording of events (logs) over the lifetime of a high-risk AI system",
+   "expected": "eu-ai-act",
+   "rank": 1,
+   "top": "eu-ai-act p.70"
+  },
+  {
+   "q": "AI regulatory sandboxes set up by national authorities",
+   "expected": "eu-ai-act",
+   "rank": 1,
+   "top": "eu-ai-act p.125"
+  },
+  {
+   "q": "Govern, map, measure and manage functions for AI risk",
+   "expected": "nist-ai-rmf",
+   "rank": 1,
+   "top": "nist-ai-rmf p.4"
+  },
+  {
+   "q": "Characteristics of trustworthy AI such as valid and reliable, safe, secure and resilient",
+   "expected": "nist-ai-rmf",
+   "rank": 1,
+   "top": "nist-ai-rmf p.17"
+  },
+  {
+   "q": "Human-in-the-loop, human-over-the-loop and human-out-of-the-loop levels of human involvement",
+   "expected": "sg-model-ai-gov",
+   "rank": 1,
+   "top": "sg-model-ai-gov p.30"
+  },
+  {
+   "q": "Probability and severity of harm used to decide the level of human involvement",
+   "expected": "sg-model-ai-gov",
+   "rank": 1,
+   "top": "sg-model-ai-gov p.31"
+  },
+  {
+   "q": "Data Protection Authority powers in Sri Lanka",
+   "expected": "lk-pdpa-2022",
+   "rank": 1,
+   "top": "lk-pdpa-2022 p.24"
+  },
+  {
+   "q": "Right of a data subject to withdraw consent and request erasure",
+   "expected": "lk-pdpa-2022, dpdp-act-2023",
+   "rank": 1,
+   "top": "lk-pdpa-2022 p.8"
+  },
+  {
+   "q": "Functions and powers of the Bangladesh Telecommunication Regulatory Commission",
+   "expected": "bd-telecom-act-2001",
+   "rank": 1,
+   "top": "bd-telecom-act-2001 p.9"
+  },
+  {
+   "q": "Licence issued by the Nepal Telecommunications Authority to operate telecommunication service",
+   "expected": "np-telecom-act-1997",
+   "rank": 1,
+   "top": "np-telecom-act-1997 p.7"
+  }
+ ]
+}

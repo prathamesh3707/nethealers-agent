@@ -92,6 +92,69 @@ def get(session_id: str) -> Session:
     return s
 
 
+DOCS = Path(__file__).resolve().parents[3] / "docs"
+_LIBRARY = None
+
+
+def library():
+    global _LIBRARY
+    if _LIBRARY is None:
+        from ..kb import Library
+
+        _LIBRARY = Library.open()
+    return _LIBRARY
+
+
+@app.on_event("startup")
+async def warm_up_library():
+    """Load the embedding model in the background, so the first search isn't slow."""
+    async def warm():
+        try:
+            await asyncio.to_thread(lambda: library().search("warm up", k=1))
+        except Exception:
+            pass
+
+    asyncio.create_task(warm())
+
+
+@app.get("/kb")
+async def kb_overview():
+    """The knowledge base: its documents (scope, country, passages, checksum) and the retrieval test results."""
+    import json
+
+    docs = await asyncio.to_thread(lambda: library().documents())
+    ev = DOCS / "kb_eval.json"
+    return {"documents": docs, "passages": sum(d["passages"] for d in docs),
+            "evaluation": json.loads(ev.read_text()) if ev.exists() else None}
+
+
+@app.get("/kb/search")
+async def kb_search(q: str, scope: str | None = None, k: int = 6):
+    """Search the knowledge base. scope: national, operator, standard, global or regional (comma-separated)."""
+    if not q.strip():
+        raise HTTPException(400, "empty query")
+    scopes = [x.strip() for x in scope.split(",")] if scope else None
+    hits = await asyncio.to_thread(lambda: library().search(q, k=min(max(k, 1), 20), scopes=scopes))
+    from ..kb import source_meta
+
+    meta = source_meta()
+    return [{"id": h.id, "doc_id": h.doc_id, "title": h.title, "page": h.page, "score": round(h.score, 3),
+             "kind": h.kind, "scope": meta.get(h.doc_id, {}).get("scope", ""),
+             "country": meta.get(h.doc_id, {}).get("country", ""), "url": meta.get(h.doc_id, {}).get("url", ""),
+             "text": " ".join(h.text.split())} for h in hits]
+
+
+@app.get("/gaps")
+def gaps():
+    """The latest policy, strategy and standards gap analysis (scripts/gap_analysis.py)."""
+    import json
+
+    f = DOCS / "gap_analysis.json"
+    if not f.exists():
+        raise HTTPException(404, "no gap analysis yet: run scripts/gap_analysis.py")
+    return json.loads(f.read_text())
+
+
 @app.get("/health")
 def health():
     return {"ok": True, "sessions": len(SESSIONS)}

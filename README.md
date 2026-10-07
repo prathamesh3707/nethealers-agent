@@ -139,6 +139,30 @@ Call `agent.on_tick()` after every `world.step()`. Each incident moves through: 
 - **Document library** (`kb/library.py`, `config/kb_sources.yaml`). The Telecommunications Act 2023, the DPDP Act 2023, TRAI's 2023 AI and big data recommendations, NITI Aayog's Responsible AI principles and the operator's own policy: 797 passages with page numbers, embedded locally (all-MiniLM-L6-v2) and stored in Postgres with pgvector (or a local file without Postgres). Passages are evidence to cite; they can't change permissions. This stands in for the ITU AI for Good Sandbox knowledge base until access is granted.
 - **Decision log** (`agent/events.py`). Every event goes to Postgres (`runs`, `events` tables) when the database is running.
 
+## Knowledge base and gap analysis (`src/nethealers/kb`, `docs/gap_analysis.md`)
+
+**Knowledge base** (`config/kb_sources.yaml`): 14 documents, about 2,960 passages with page numbers, each tagged with a scope.
+
+| Scope | Documents | Used by |
+|---|---|---|
+| national (India) | Telecommunications Act 2023, Digital Personal Data Protection Act 2023, TRAI AI and big data recommendations 2023, NITI Aayog Responsible AI 2021 | agent, gap analysis |
+| operator | `config/policy.yaml`, `config/intents.yaml` | agent, gap analysis |
+| standard | ITU-T Y.3172, Y.3181, Y.3090 | agent, gap analysis |
+| global | EU AI Act (Parliament text, March 2024), NIST AI RMF 1.0, Singapore Model AI Governance Framework | gap analysis only |
+| regional | Sri Lanka PDPA 2022, Bangladesh Telecommunication Act 2001, Nepal Telecommunications Act 1997 | gap analysis only |
+
+The network agent's safety adviser only cites national, operator and standard passages. `docs/kb_report.md` lists every document with its link and the SHA-256 of the downloaded file, and the retrieval test (`config/kb_eval.yaml`, 26 questions with known answers): right document in the top 3 for 92% of questions over all documents, 100% within the document's scope (how the agents search), mean reciprocal rank 0.86.
+
+**Gap analysis** (`config/gap_topics.yaml`, `scripts/gap_analysis.py`): ten questions an autonomous network agent runs into (accountability, human oversight, emergency priority, personal data in telemetry, sandbox testing, audit logging, standards adoption, cross-border coordination, AI security, energy), each linked to where our agent meets it in the simulation. For each, the analyst searches with the question and with phrasings in the documents' own legal language, gathers what India's documents, the standards, each global example and each neighbouring country say, and a language model names the gaps (unclear responsibility, legislative, standards, technology, coordination, conflicting objectives) using only those passages. Citations to passages it was not given are removed, and the country of each example comes from the document records. Without a model it falls back to retrieval only. Results: `docs/gap_analysis.md` and the **⚖ Policy** screen in the game, where every citation opens its source passage.
+
+```bash
+uv run python scripts/build_library.py   # download and index the documents (a few minutes)
+uv run python scripts/eval_library.py    # retrieval test -> docs/kb_report.md
+uv run python scripts/gap_analysis.py    # gap analysis -> docs/gap_analysis.md (uses the model in .env)
+```
+
+API: `GET /kb` (documents and retrieval scores), `GET /kb/search?q=&scope=`, `GET /gaps`.
+
 ## Game backend (`src/nethealers/api`)
 
 A session is one street with its clock running in the background (1 tick per second by default, up to 10), the agent, and the player as the operator who answers approval requests. Player actions go through a lock so they never land mid-tick; while the agent thinks, the street waits.
