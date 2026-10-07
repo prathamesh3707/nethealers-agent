@@ -9,6 +9,7 @@ import { freeSpot, headingFor, isVehicle, laneY, VEHICLE_SIZE, type Rect } from 
 import { Vehicle } from './Vehicles'
 import { BuildingModel } from './Buildings'
 import { HoardingModel } from './Hoarding'
+import { CrowdModel } from './People'
 
 // Simulator metres (x east, y north, z up) -> three.js (x right, y up, z toward the viewer).
 const CX = 200
@@ -371,6 +372,8 @@ function BlockerBox({ b }: { b: Blocker }) {
           opacity={b.hidden ? 0.45 : 1} />
       ) : b.kind === 'hoarding' ? (
         <HoardingModel id={b.id} w={b.x1 - b.x0} d={b.y1 - b.y0} h={b.height} opacity={b.hidden ? 0.45 : 1} />
+      ) : b.kind === 'crowd' ? (
+        <CrowdModel id={b.id} w={b.x1 - b.x0} d={b.y1 - b.y0} h={b.height} opacity={b.hidden ? 0.45 : 1} />
       ) : (
         <mesh position={[0, b.height / 2, 0]} castShadow>
           <boxGeometry args={[b.x1 - b.x0, b.height, b.y1 - b.y0]} />
@@ -381,8 +384,8 @@ function BlockerBox({ b }: { b: Blocker }) {
       {selected && <Footprint w={b.x1 - b.x0} d={b.y1 - b.y0} />}
       <Html zIndexRange={[20, 0]} position={[0, b.height + 3, 0]} center className="pointer-events-none">
         <div data-tour="blocker" className={`label whitespace-nowrap font-semibold ${vehicle && !selected ? 'opacity-70' : ''}`}
-          style={{ color: vehicle ? '#e2e8f0' : color }}>
-          {vehicle || b.kind === 'hoarding' ? '' : b.kind === 'crowd' ? '👥 ' : '⬛ '}
+          style={{ color: vehicle || b.kind === 'hoarding' || b.kind === 'crowd' ? '#e2e8f0' : color }}>
+          {vehicle || b.kind === 'hoarding' || b.kind === 'crowd' ? '' : '⬛ '}
           {b.kind}{b.hidden ? ' (twin can’t see)' : ''}{selected ? ' · ◀ ▶ moves it' : ''}
         </div>
       </Html>
