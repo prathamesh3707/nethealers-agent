@@ -7,18 +7,14 @@ import { BAND_COLOR } from '../stages'
 import { useFocusedIncident, useGame } from '../store'
 import { freeSpot, headingFor, isVehicle, laneY, VEHICLE_SIZE, type Rect } from './vehicleGeometry'
 import { Vehicle } from './Vehicles'
+import { BuildingModel } from './Buildings'
+import { HoardingModel } from './Hoarding'
 
 // Simulator metres (x east, y north, z up) -> three.js (x right, y up, z toward the viewer).
 const CX = 200
 const CY = 110
 const toV = (x: number, y: number, h = 0) => new THREE.Vector3(x - CX, h, -(y - CY))
 
-const MATERIAL: Record<string, { color: string; opacity: number }> = {
-  glass: { color: '#7dd3fc', opacity: 0.55 },
-  concrete: { color: '#94a3b8', opacity: 1 },
-  brick: { color: '#b07a5a', opacity: 1 },
-  metal: { color: '#a1a1aa', opacity: 1 },
-}
 const BLOCKER_COLOR: Record<string, string> = {
   bus: '#facc15', truck: '#f97316', car: '#60a5fa', crowd: '#e879f9', kiosk: '#fb7185', hoarding: '#c084fc',
 }
@@ -175,15 +171,10 @@ function ZoneArea({ zone, load }: { zone: Zone; load: number }) {
 }
 
 function BuildingBox({ b }: { b: Building }) {
-  const m = MATERIAL[b.material] ?? MATERIAL.concrete
   const c = toV((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.height / 2)
   return (
     <group>
-      <mesh position={c} castShadow receiveShadow>
-        <boxGeometry args={[b.x1 - b.x0, b.height, b.y1 - b.y0]} />
-        <meshStandardMaterial color={m.color} transparent={m.opacity < 1} opacity={m.opacity}
-          roughness={b.material === 'glass' ? 0.1 : 0.85} metalness={b.material === 'glass' ? 0.4 : 0.05} />
-      </mesh>
+      <BuildingModel b={b} at={c} />
       <Html zIndexRange={[20, 0]} position={toV((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.height + 3)} center className="pointer-events-none">
         <div className="label whitespace-nowrap text-slate-300">{b.name}</div>
       </Html>
@@ -378,6 +369,8 @@ function BlockerBox({ b }: { b: Blocker }) {
       {vehicle ? (
         <Vehicle kind={b.kind as 'bus' | 'truck' | 'car'} id={b.id} heading={headingFor(b.x0, b.x1, b.y0, b.y1)}
           opacity={b.hidden ? 0.45 : 1} />
+      ) : b.kind === 'hoarding' ? (
+        <HoardingModel id={b.id} w={b.x1 - b.x0} d={b.y1 - b.y0} h={b.height} opacity={b.hidden ? 0.45 : 1} />
       ) : (
         <mesh position={[0, b.height / 2, 0]} castShadow>
           <boxGeometry args={[b.x1 - b.x0, b.height, b.y1 - b.y0]} />
@@ -389,7 +382,7 @@ function BlockerBox({ b }: { b: Blocker }) {
       <Html zIndexRange={[20, 0]} position={[0, b.height + 3, 0]} center className="pointer-events-none">
         <div data-tour="blocker" className={`label whitespace-nowrap font-semibold ${vehicle && !selected ? 'opacity-70' : ''}`}
           style={{ color: vehicle ? '#e2e8f0' : color }}>
-          {vehicle ? '' : b.kind === 'crowd' ? '👥 ' : '⬛ '}
+          {vehicle || b.kind === 'hoarding' ? '' : b.kind === 'crowd' ? '👥 ' : '⬛ '}
           {b.kind}{b.hidden ? ' (twin can’t see)' : ''}{selected ? ' · ◀ ▶ moves it' : ''}
         </div>
       </Html>
