@@ -145,7 +145,9 @@ class Roles:
         q = (f"{summary.get('cause', '')} {option['fix']} automated network change accountability "
              f"{'protected zone hospital' if isinstance(option.get('protected_zones_affected'), dict) else ''}")
         try:
-            return self.library.search(q, k=k)
+            from ..kb import AGENT_SCOPES
+
+            return self.library.search(q, k=k, scopes=AGENT_SCOPES)  # host-country law, standards, operator policy
         except Exception:
             return []
 

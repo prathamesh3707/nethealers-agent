@@ -43,6 +43,8 @@ interface Store {
   setTour: (n: number | null) => void
   demo: boolean // the incident demo is running
   setDemo: (on: boolean) => void
+  policyOpen: boolean // the policy & knowledge base screen
+  setPolicyOpen: (open: boolean) => void
 
   setMode: (m: 'simple' | 'expert') => void
   setIntro: (open: boolean) => void
@@ -117,6 +119,8 @@ export const useGame = create<Store>((set, get) => {
     setTour: (tour) => set({ tour, demo: false }),
     demo: false,
     setDemo: (demo) => set({ demo, tour: null }),
+    policyOpen: false,
+    setPolicyOpen: (policyOpen) => set({ policyOpen }),
 
     setMode(mode) { save(MODE_KEY, mode); set({ mode }) },
     setIntro(open) { if (!open) save(INTRO_KEY, '1'); set({ introOpen: open }) },

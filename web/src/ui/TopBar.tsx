@@ -47,6 +47,10 @@ export default function TopBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-2 text-xs">
+        <button data-tour="policy" className="btn bg-amber-600/90 py-1 text-xs text-amber-50 hover:bg-amber-500"
+          onClick={() => useGame.getState().setPolicyOpen(true)}>
+          ⚖ Policy
+        </button>
         <button className="btn bg-slate-800 py-1 text-xs hover:bg-slate-700" onClick={() => useGame.getState().setTour(0)}>
           ⓘ UI tour
         </button>

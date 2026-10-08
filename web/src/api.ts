@@ -92,6 +92,38 @@ export const api = {
   stop: (id: string) => call('DELETE', `/sessions/${id}`),
 }
 
+export interface KbDoc {
+  id: string; title: string; publisher?: string; kind: string; scope?: string; country?: string; url?: string
+  passages: number; sha256?: string
+}
+export interface KbHit {
+  id: string; doc_id: string; title: string; page: number; score: number; kind: string; scope: string
+  country: string; url: string; text: string
+}
+export interface GapPassage {
+  group: string; passage_id: string; doc_id: string; title: string; page: number; score: number; scope: string
+  country: string; url: string; excerpt: string
+}
+export interface GapExample { passage: string; jurisdiction: string; title: string; page: number; what_it_does: string }
+export interface GapTopic {
+  id: string; title: string; question: string; seen_in: string; national_coverage: number
+  passages: Record<string, GapPassage>; national_position: string; gaps: { type: string; summary: string }[]
+  conflicts: string; severity: 'high' | 'medium' | 'low'; global_examples: GapExample[]; regional: GapExample[]
+  recommendation: string; confidence: string; method: string
+}
+export interface GapReport { topics: GapTopic[]; documents: KbDoc[]; gap_types: string[]; method: string }
+export interface KbOverview {
+  documents: KbDoc[]; passages: number
+  evaluation: { questions: number; recall_at: Record<string, number>; mrr: number; scoped_recall_at_3: number } | null
+}
+
+export const kb = {
+  overview: () => call<KbOverview>('GET', '/kb'),
+  search: (q: string, scope?: string) =>
+    call<KbHit[]>('GET', `/kb/search?q=${encodeURIComponent(q)}${scope ? `&scope=${scope}` : ''}&k=8`),
+  gaps: () => call<GapReport>('GET', '/gaps'),
+}
+
 export function liveUrl(id: string): string {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
   return `${proto}://${location.host}/sessions/${id}/live`

@@ -1,30 +1,117 @@
-# Documents in the agent's searchable library. `kind` says how much weight a passage carries:
+# Documents in the knowledge base. `kind` says how much weight a passage carries:
 #   law             binding (applicable rules and commencement still need checking before use)
 #   recommendation  advice from a regulator, not binding
-#   guidance        policy principles, not binding
+#   guidance        policy principles or frameworks, not binding
+#   standard        a technical standard
 #   operator        this operator's own policy: the rule-checker enforces it
+# `scope` says whose document it is:
+#   national  the host country (India): what the agent must follow
+#   operator  this operator's policy
+#   standard  ITU-T and other technical standards
+#   global    examples from other jurisdictions, used for gap analysis only
+#   regional  neighbouring countries, used for gap analysis only
+# The network agent's safety adviser only cites national, operator and standard passages.
 - id: telecom-act-2023
   title: The Telecommunications Act, 2023 (No. 44 of 2023)
   publisher: Government of India
   kind: law
   url: https://egazette.gov.in/WriteReadData/2023/250880.pdf
+  scope: national
+  country: India
 - id: dpdp-act-2023
   title: The Digital Personal Data Protection Act, 2023
   publisher: Government of India (MeitY)
   kind: law
   url: https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf
+  scope: national
+  country: India
 - id: trai-ai-2023
   title: TRAI Recommendations on Leveraging Artificial Intelligence and Big Data in the Telecommunication Sector (2023)
   publisher: Telecom Regulatory Authority of India
   kind: recommendation
   url: https://www.trai.gov.in/sites/default/files/2024-09/Recommendation_20072023.pdf
+  scope: national
+  country: India
 - id: niti-rai-2021
   title: "Responsible AI for All, Part 1: Principles for Responsible AI (2021)"
   publisher: NITI Aayog
   kind: guidance
   url: https://www.niti.gov.in/sites/default/files/2021-02/Responsible-AI-22022021.pdf
+  scope: national
+  country: India
 - id: operator-policy
   title: Operator policy for the self-healing agent
   publisher: Operator (this project)
   kind: operator
+  scope: operator
+  country: India
   files: [config/policy.yaml, config/intents.yaml]
+
+# ---- ITU-T standards the architecture follows
+- id: itu-y3172
+  title: "ITU-T Y.3172: Architectural framework for machine learning in future networks including IMT-2020 (2019)"
+  publisher: ITU-T
+  kind: standard
+  scope: standard
+  country: International
+  url: https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-Y.3172-201906-I!!PDF-E&type=items
+- id: itu-y3181
+  title: "ITU-T Y.3181: Architectural framework for machine learning sandbox in future networks including IMT-2020 (2022)"
+  publisher: ITU-T
+  kind: standard
+  scope: standard
+  country: International
+  url: https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-Y.3181-202209-I!!PDF-E&type=items
+- id: itu-y3090
+  title: "ITU-T Y.3090: Digital twin network - Requirements and architecture (2022)"
+  publisher: ITU-T
+  kind: standard
+  scope: standard
+  country: International
+  url: https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-Y.3090-202202-I!!PDF-E&type=items
+
+# ---- Global policy examples (gap analysis only)
+- id: eu-ai-act
+  title: "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)"
+  publisher: European Parliament
+  kind: law
+  scope: global
+  country: European Union
+  url: https://artificialintelligenceact.eu/wp-content/uploads/2024/04/TA-9-2024-0138_EN.pdf
+- id: nist-ai-rmf
+  title: "NIST AI Risk Management Framework (AI RMF 1.0), NIST AI 100-1 (2023)"
+  publisher: US National Institute of Standards and Technology
+  kind: guidance
+  scope: global
+  country: United States
+  url: https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf
+- id: sg-model-ai-gov
+  title: "Singapore Model Artificial Intelligence Governance Framework, Second Edition (2020)"
+  publisher: Infocomm Media Development Authority and PDPC, Singapore
+  kind: guidance
+  scope: global
+  country: Singapore
+  url: https://www.pdpc.gov.sg/-/media/files/pdpc/pdf-files/resource-for-organisation/ai/sgmodelaigovframework2.pdf
+
+# ---- Neighbouring countries (gap analysis only)
+- id: lk-pdpa-2022
+  title: "Sri Lanka Personal Data Protection Act, No. 9 of 2022"
+  publisher: Parliament of Sri Lanka
+  kind: law
+  scope: regional
+  country: Sri Lanka
+  url: https://www.parliament.lk/uploads/acts/gbills/english/6242.pdf
+- id: bd-telecom-act-2001
+  title: "Bangladesh Telecommunication Act, 2001 (authentic English text)"
+  publisher: Government of Bangladesh (via ITU)
+  kind: law
+  scope: regional
+  country: Bangladesh
+  url: https://www.itu.int/ITU-D/treg/Documentation/Bangladesh/BTRC-TelecomLaw2001.pdf
+- id: np-telecom-act-1997
+  title: "Nepal Telecommunications Act, 2053 (1997), up to date English text"
+  publisher: Nepal Telecommunications Authority
+  kind: law
+  scope: regional
+  country: Nepal
+  url: https://nta.gov.np/uploads/contents/Telecom%20Act%20Upto%20date%20Eng.pdf

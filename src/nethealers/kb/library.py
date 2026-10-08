@@ -63,6 +63,14 @@ def load_sources() -> list[dict]:
     return yaml.safe_load(SOURCES.read_text())
 
 
+def source_meta() -> dict[str, dict]:
+    """doc id -> its entry in config/kb_sources.yaml (title, publisher, kind, scope, country, url)."""
+    return {s["id"]: s for s in load_sources()}
+
+
+AGENT_SCOPES = ["national", "operator", "standard"]  # what the network agent may cite
+
+
 def fetch(src: dict) -> Path | None:
     """Download a source PDF once (into data/kb/raw). Returns the local path."""
     if "url" not in src:
@@ -167,7 +175,7 @@ class MemoryStore:
         np.save(self.path / "vectors.npy", self.vecs)
         (self.path / "passages.json").write_text(json.dumps(self.meta))
 
-    def search(self, vec: np.ndarray, k: int, kinds: list[str] | None) -> list[Hit]:
+    def search(self, vec: np.ndarray, k: int, kinds: list[str] | None, docs: list[str] | None = None) -> list[Hit]:
         if not len(self.meta):
             return []
         scores = self.vecs @ vec
@@ -176,6 +184,8 @@ class MemoryStore:
         for i in order:
             m = self.meta[i]
             if kinds and m["kind"] not in kinds:
+                continue
+            if docs is not None and m["doc_id"] not in docs:
                 continue
             out.append(Hit(**m, score=float(scores[i])))
             if len(out) == k:
@@ -212,12 +222,18 @@ class PgStore:
                     "VALUES (%s, %s, %s, %s, %s, %s, %s)",
                     [(p.id, p.doc_id, p.title, p.kind, p.page, p.text, v) for p, v in zip(passages, vecs)])
 
-    def search(self, vec: np.ndarray, k: int, kinds: list[str] | None) -> list[Hit]:
+    def search(self, vec: np.ndarray, k: int, kinds: list[str] | None, docs: list[str] | None = None) -> list[Hit]:
         sql = "SELECT id, doc_id, title, kind, page, text, 1 - (embedding <=> %s) FROM kb_passages"
         args: list = [vec]
+        where = []
         if kinds:
-            sql += " WHERE kind = ANY(%s)"
+            where.append("kind = ANY(%s)")
             args.append(kinds)
+        if docs is not None:
+            where.append("doc_id = ANY(%s)")
+            args.append(list(docs))
+        if where:
+            sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY embedding <=> %s LIMIT %s"
         args += [vec, k]
         rows = self.conn.execute(sql, args).fetchall()
@@ -257,7 +273,30 @@ class Library:
             log(f"  {src['id']}: {len(passages)} passages")
         return counts
 
-    def search(self, query: str, k: int = 4, kinds: list[str] | None = None) -> list[Hit]:
+    def search(self, query: str, k: int = 4, kinds: list[str] | None = None, scopes: list[str] | None = None,
+               docs: list[str] | None = None) -> list[Hit]:
+        """Best-matching passages. `scopes` (national, operator, standard, global, regional) and `docs` narrow it."""
         if self.store.count() == 0:
             return []
-        return self.store.search(embed([query])[0], k, kinds)
+        if scopes is not None:
+            in_scope = [d for d, m in source_meta().items() if m.get("scope", "national") in scopes]
+            docs = in_scope if docs is None else [d for d in docs if d in in_scope]
+        return self.store.search(embed([query])[0], k, kinds, docs)
+
+    def documents(self) -> list[dict]:
+        """Each source with how many passages of it are in the index."""
+        counts: dict[str, int] = {}
+        if isinstance(self.store, MemoryStore):
+            for m in self.store.meta:
+                counts[m["doc_id"]] = counts.get(m["doc_id"], 0) + 1
+        else:
+            for doc_id, n in self.store.conn.execute("SELECT doc_id, count(*) FROM kb_passages GROUP BY doc_id"):
+                counts[doc_id] = n
+        import hashlib
+
+        def sha(d: str) -> str:
+            f = RAW / f"{d}.pdf"
+            return hashlib.sha256(f.read_bytes()).hexdigest() if f.exists() else ""
+
+        return [{**{k: v for k, v in m.items() if k != "files"}, "passages": counts.get(d, 0), "sha256": sha(d)}
+                for d, m in source_meta().items()]

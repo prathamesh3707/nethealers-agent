@@ -1,5 +1,5 @@
 """Searchable document library (laws, regulator advice, operator policy)."""
 
-from .library import Hit, Library, Passage
+from .library import AGENT_SCOPES, Hit, Library, Passage, source_meta
 
-__all__ = ["Hit", "Library", "Passage"]
+__all__ = ["AGENT_SCOPES", "Hit", "Library", "Passage", "source_meta"]
