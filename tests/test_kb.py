@@ -78,3 +78,27 @@ def test_passages_pinned_in_the_itu_alignment_exist():
     rows = yaml.safe_load((Path(__file__).resolve().parents[1] / "config" / "itu_alignment.yaml").read_text())
     ids = {pid for r in rows["policy_to_control"] for pid in r["passages"]}
     assert ids <= set(lib.get(sorted(ids)))  # ids change if the documents are re-split: re-pin them
+
+
+def test_remote_knowledge_base_reads_both_reply_shapes_and_falls_back_when_down(monkeypatch):
+    from nethealers.kb.library import RemoteStore
+
+    class Local:
+        def search(self, vec, k, kinds, docs):
+            return [hit("local:1:0", "telecom-act-2023")]
+
+    rs = RemoteStore("http://sandbox.invalid/search", Local())
+    nested = {"results": [{"id": "x:3:0", "text": "t", "score": 0.9,
+                           "metadata": {"doc_id": "x", "title": "X", "kind": "law", "page": 3}}]}
+    monkeypatch.setattr(rs, "_post", lambda body: nested)
+    h = rs.search_text("q", lambda q: None, 3, None, None)[0]
+    assert (h.id, h.doc_id, h.title, h.page, h.score) == ("x:3:0", "x", "X", 3, 0.9)
+    monkeypatch.setattr(rs, "_post", lambda body: [{"id": "y:1:0", "text": "t", "doc_id": "y"}])
+    assert rs.search_text("q", lambda q: None, 3, None, None)[0].id == "y:1:0"
+
+    def down(body):
+        raise OSError("unreachable")
+
+    monkeypatch.setattr(rs, "_post", down)
+    assert rs.search_text("q", lambda q: None, 3, None, None)[0].id == "local:1:0"
+    assert rs.last_error == "unreachable"

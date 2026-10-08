@@ -252,6 +252,51 @@ class PgStore:
         return [Passage(*r) for r in rows]
 
 
+class RemoteStore:
+    """Search through a remote knowledge base (e.g. the ITU AI for Good Sandbox), keeping the local index as a
+    fallback. Switch on with KB_BACKEND=remote and KB_REMOTE_URL=...; anything that fails falls back to local.
+
+    The request is a JSON POST {"query", "k", "doc_ids", "kinds"}; the reply may be a list or {"results": [...]},
+    each item with "id", "text", "score" and the passage fields (doc_id, title, kind, page) either at the top level
+    or under "metadata". Adapt `_post` and `_hit` on the day if the Sandbox's reference code differs.
+    """
+
+    name = "remote knowledge base"
+    wants_text = True
+
+    def __init__(self, url: str, fallback, timeout: float = 15.0):
+        self.url, self.fallback, self.timeout = url, fallback, timeout
+        self.last_error: str | None = None
+
+    def _post(self, body: dict):
+        req = urllib.request.Request(self.url, data=json.dumps(body).encode(), method="POST",
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=self.timeout) as r:
+            return json.loads(r.read())
+
+    @staticmethod
+    def _hit(item: dict) -> Hit:
+        m = {**item.get("metadata", {}), **{k: v for k, v in item.items() if k != "metadata"}}
+        return Hit(str(m["id"]), str(m.get("doc_id", "")), str(m.get("title", m.get("doc_id", ""))),
+                   str(m.get("kind", "")), int(m.get("page", 0) or 0), str(m["text"]), float(m.get("score", 0.0)))
+
+    def search_text(self, query: str, vec_of, k: int, kinds, docs) -> list[Hit]:
+        try:
+            out = self._post({"query": query, "k": k, "doc_ids": docs, "kinds": kinds})
+            items = out.get("results", []) if isinstance(out, dict) else out
+            self.last_error = None
+            return [self._hit(i) for i in items][:k]
+        except Exception as e:  # unreachable, or a reply we can't read: keep working on the local index
+            self.last_error = str(e)[:200]
+            return self.fallback.search(vec_of(query), k, kinds, docs)
+
+    def count(self) -> int:
+        return self.fallback.count()
+
+    def get(self, ids: list[str]) -> list[Passage]:
+        return self.fallback.get(ids)
+
+
 class Library:
     """Search the documents: `Library.open().search("can the agent change tower power on its own?")`."""
 
@@ -261,12 +306,22 @@ class Library:
     @classmethod
     def open(cls, prefer_postgres: bool = True) -> "Library":
         url = os.environ.get("DATABASE_URL")
+        local = None
         if prefer_postgres and url:
             try:
-                return cls(PgStore(url))
+                local = PgStore(url)
             except Exception:
                 pass
-        return cls(MemoryStore())
+        local = local or MemoryStore()
+        remote = os.environ.get("KB_REMOTE_URL")
+        if os.environ.get("KB_BACKEND", "local") == "remote" and remote:
+            return cls(RemoteStore(remote, local))
+        return cls(local)
+
+    @property
+    def local(self):
+        """The index on this machine (the remote store's fallback, when a remote one is in use)."""
+        return getattr(self.store, "fallback", self.store)
 
     def build(self, sources: list[dict] | None = None, log=print) -> dict:
         counts = {}
@@ -277,7 +332,7 @@ class Library:
                 log(f"  skipped {src['id']}: {e}")
                 continue
             vecs = embed([p.text for p in passages])
-            self.store.replace_doc(src["id"], passages, vecs)
+            self.local.replace_doc(src["id"], passages, vecs)
             counts[src["id"]] = len(passages)
             log(f"  {src['id']}: {len(passages)} passages")
         return counts
@@ -290,6 +345,8 @@ class Library:
         if scopes is not None:
             in_scope = [d for d, m in source_meta().items() if m.get("scope", "national") in scopes]
             docs = in_scope if docs is None else [d for d in docs if d in in_scope]
+        if getattr(self.store, "wants_text", False):
+            return self.store.search_text(query, lambda q: embed([q])[0], k, kinds, docs)
         return self.store.search(embed([query])[0], k, kinds, docs)
 
     def get(self, ids: list[str]) -> dict[str, Passage]:
@@ -299,11 +356,11 @@ class Library:
     def documents(self) -> list[dict]:
         """Each source with how many passages of it are in the index."""
         counts: dict[str, int] = {}
-        if isinstance(self.store, MemoryStore):
-            for m in self.store.meta:
+        if isinstance(self.local, MemoryStore):
+            for m in self.local.meta:
                 counts[m["doc_id"]] = counts.get(m["doc_id"], 0) + 1
         else:
-            for doc_id, n in self.store.conn.execute("SELECT doc_id, count(*) FROM kb_passages GROUP BY doc_id"):
+            for doc_id, n in self.local.conn.execute("SELECT doc_id, count(*) FROM kb_passages GROUP BY doc_id"):
                 counts[doc_id] = n
         import hashlib
 
