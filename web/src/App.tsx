@@ -9,6 +9,7 @@ import StatsBar from './ui/StatsBar'
 import Toolbar from './ui/Toolbar'
 import Demo from './ui/Demo'
 import PolicyPanel from './ui/PolicyPanel'
+import Coordination from './ui/Coordination'
 import Tour from './ui/Tour'
 import TopBar from './ui/TopBar'
 
@@ -60,6 +61,7 @@ export default function App() {
       <Tour />
       <Demo />
       <PolicyPanel />
+      <Coordination />
       {toast && (
         <div className={`fixed left-1/2 top-16 z-30 -translate-x-1/2 rounded-lg px-4 py-2 text-sm shadow-xl
           ${toast.tone === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-100'}`}>

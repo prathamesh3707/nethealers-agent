@@ -23,6 +23,7 @@ import numpy as np
 
 from ..agent import Agent, EventLog, Policy, Roles
 from ..agent.events import Event
+from ..agent.institutions import coordination
 from ..sim import (
     add_blocker,
     add_external_interferer,
@@ -468,11 +469,19 @@ class Session:
                     "probabilities": {k: round(v, 3) for k, v in inc.probs.items()},
                     "decision_ms": round(1000 * sum(inc.decision_seconds), 1),
                 },
+                "who_knew_what": coordination(events, inc.opened),
                 "fixes_tried": fixes,
                 "asked_a_person": [e for e in events if e["stage"] in ("escalate", "approve")],
                 "policy_adviser": [e for e in events if e["stage"] == "advise"],
                 "timeline": events,
             }
+
+    def coordination(self, incident_id: str) -> dict:
+        with self.lock:
+            inc = self.agent.incidents.get(incident_id) if self.agent else None
+            if inc is None:
+                raise KeyError(incident_id)
+            return coordination([e.to_dict() for e in self.agent.log.for_incident(incident_id)], inc.opened)
 
     def log_consultation(self, incident_id: str | None, result: dict) -> None:
         """Put a question to the policy adviser, and its answer, in the audit log (and Postgres, if running)."""

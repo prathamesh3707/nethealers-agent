@@ -79,6 +79,7 @@ export const api = {
   state: (id: string) => call<Frame>('GET', `/sessions/${id}/state`),
   events: (id: string) => call<AgentEvent[]>('GET', `/sessions/${id}/events`),
   incident: (id: string, inc: string) => call<{ events: AgentEvent[] }>('GET', `/sessions/${id}/incidents/${inc}`),
+  roles: (id: string, inc: string) => call<Coordination>('GET', `/sessions/${id}/incidents/${inc}/roles`),
   addProblem: (id: string, p: NewProblem) =>
     call<{ id: string; x?: number; y?: number }>('POST', `/sessions/${id}/problems`, p),
   removeProblem: (id: string, pid: string) => call('DELETE', `/sessions/${id}/problems/${pid}`),
@@ -115,6 +116,15 @@ export interface GapReport { topics: GapTopic[]; documents: KbDoc[]; gap_types: 
 export interface KbOverview {
   documents: KbDoc[]; passages: number
   evaluation: { questions: number; recall_at: Record<string, number>; mrr: number; scoped_recall_at_3: number } | null
+}
+
+export type RoleId = 'noc' | 'planner' | 'regulator' | 'person'
+export interface Coordination {
+  roles: { id: RoleId; name: string; mandate: string; sees: string; cannot: string }[]
+  messages: { role: RoleId; t: number; tick: number; stage: string; text: string }[]
+  handovers: { from: RoleId; to: RoleId; t: number }[]
+  first_heard: Partial<Record<RoleId, number>>
+  opened_tick: number
 }
 
 export interface AdviserPassage extends GapPassage { authority: string }

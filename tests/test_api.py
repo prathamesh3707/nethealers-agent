@@ -183,3 +183,15 @@ def test_itu_alignment_lists_the_pipeline_and_the_policy_trace(client):
     assert [r["node"].split()[0] for r in d["y3172"]][:7] == ["SRC", "C", "PP", "M", "P", "D", "SINK"]
     assert len(d["y3173"]) == 5 and len(d["ai_ready"]) == 6
     assert all(r["sources"] for r in d["policy_to_control"])
+
+
+def test_who_knew_what_splits_the_incident_by_institutional_role(client):
+    sid = start(client)["id"]
+    client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": BUS_POSITION[0], "y": BUS_POSITION[1]})
+    iid = step(client, sid, 12)["incidents"][0]["id"]
+    d = client.get(f"/sessions/{sid}/incidents/{iid}/roles").json()
+    assert [r["id"] for r in d["roles"]] == ["noc", "planner", "regulator", "person"]
+    order = [m["role"] for m in d["messages"]]
+    assert order[0] == "noc" and "planner" in order and "regulator" in order
+    assert order.index("planner") < order.index("regulator")  # the planner proposes before the regulator checks
+    assert d["first_heard"]["noc"] <= d["first_heard"]["planner"] <= d["first_heard"]["regulator"]

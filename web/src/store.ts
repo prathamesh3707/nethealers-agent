@@ -50,6 +50,7 @@ interface Store {
   policyTab: PolicyTab
   adviserIncident: string | null // the incident the adviser is asked about, if any
   openPolicy: (tab: PolicyTab, incident?: string | null) => void
+  rolesOf: string | null // the incident shown in "who knew what, when"
 
   setMode: (m: 'simple' | 'expert') => void
   setIntro: (open: boolean) => void
@@ -129,6 +130,7 @@ export const useGame = create<Store>((set, get) => {
     policyTab: 'ask',
     adviserIncident: null,
     openPolicy: (policyTab, incident) => set({ policyOpen: true, policyTab, adviserIncident: incident ?? null }),
+    rolesOf: null,
 
     setMode(mode) { save(MODE_KEY, mode); set({ mode }) },
     setIntro(open) { if (!open) save(INTRO_KEY, '1'); set({ introOpen: open }) },

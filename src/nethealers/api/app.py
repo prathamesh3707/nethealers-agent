@@ -16,6 +16,7 @@ POST /sessions/{id}/answer             approve or reject a fix the agent asked a
 GET  /sessions/{id}/events?since=N     the agent's log
 GET  /sessions/{id}/incidents/{iid}    one incident's full timeline, for replay
 GET  /sessions/{id}/incidents/{iid}/report   download everything about one incident (JSON), for audit
+GET  /sessions/{id}/incidents/{iid}/roles    who knew what, when: the incident by institutional role
 POST /adviser                          ask the policy and legal adviser a question (optionally about an incident)
 GET  /alignment                        ITU-T Y.3172 / Y.3173 / AI Ready mapping and the policy-to-control trace
 WS   /sessions/{id}/live               one frame per tick, with that tick's events
@@ -384,6 +385,15 @@ async def incident_report(session_id: str, incident_id: str):
     name = f"nethealers-{incident_id}-{session_id}.json"
     return Response(json.dumps(report, indent=1, default=_jsonable, ensure_ascii=False), media_type="application/json",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.get("/sessions/{session_id}/incidents/{incident_id}/roles")
+async def incident_roles(session_id: str, incident_id: str):
+    s = get(session_id)
+    try:
+        return await asyncio.to_thread(s.coordination, incident_id)
+    except KeyError:
+        raise HTTPException(404, f"no incident {incident_id}")
 
 
 @app.websocket("/sessions/{session_id}/live")
