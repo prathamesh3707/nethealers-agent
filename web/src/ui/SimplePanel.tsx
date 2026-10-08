@@ -198,16 +198,28 @@ function TwinTest({ events }: { events: AgentEvent[] }) {
 
   return (
     <Box tour="twin">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-2">
         <Kicker>Digital twin: every fix it tried</Kicker>
         {rounds.length > 1 && (
-          <div className="mb-1.5 flex gap-1">
-            {rounds.map((r, i) => (
-              <button key={i} onClick={() => setPick(i === rounds.length - 1 ? null : i)} title={`Round ${i + 1} at t = ${r.tick} s`}
-                className={`chip ${i === n ? 'bg-sky-500 text-sky-950' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}>
-                Round {i + 1}
+          // A stepper rather than one button per round: it stays the same width however many rounds there are.
+          <div className="mb-1.5 flex shrink-0 items-center gap-1">
+            <button onClick={() => setPick(Math.max(0, n - 1))} disabled={n === 0} aria-label="Previous round"
+              className="chip bg-slate-800 text-slate-300 hover:text-slate-100 disabled:cursor-default disabled:opacity-40">
+              ◀
+            </button>
+            <span className="chip bg-sky-500 tabular-nums text-sky-950" title={`Round ${n + 1} at t = ${rehearse.tick} s`}>
+              Round {n + 1} / {rounds.length}
+            </span>
+            <button onClick={() => setPick(n + 1 >= rounds.length - 1 ? null : n + 1)} disabled={n >= rounds.length - 1}
+              aria-label="Next round"
+              className="chip bg-slate-800 text-slate-300 hover:text-slate-100 disabled:cursor-default disabled:opacity-40">
+              ▶
+            </button>
+            {pick !== null && (
+              <button onClick={() => setPick(null)} className="chip bg-slate-800 text-sky-300 hover:text-sky-200">
+                Latest
               </button>
-            ))}
+            )}
           </div>
         )}
       </div>
