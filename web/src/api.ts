@@ -117,11 +117,35 @@ export interface KbOverview {
   evaluation: { questions: number; recall_at: Record<string, number>; mrr: number; scoped_recall_at_3: number } | null
 }
 
+export interface AdviserPassage extends GapPassage { authority: string }
+export type Verdict = 'allowed' | 'conditional' | 'not allowed' | 'not established'
+export interface AdviserAnswer {
+  question: string; verdict: Verdict; answer: string; conditions: string[]; responsible: string
+  recommended_action: string; elsewhere: string; confidence: 'high' | 'medium' | 'low'; cited: string[]; note: string
+  method: string; passages: Record<string, AdviserPassage>; incident: Record<string, unknown> | null
+}
+
+export interface AlignmentSource {
+  id: string; missing?: boolean; title?: string; page?: number; url?: string; authority?: string; excerpt?: string
+}
+export interface Alignment {
+  y3172: { node: string; ours: string; code: string; evidence: string; status: string; note?: string }[]
+  y3173: { dimension: string; who: string; ours: string }[]
+  ai_ready: { dimension: string; ours: string; status: string; note?: string }[]
+  policy_to_control: {
+    id: string; policy: string; actor: string; standard: string; control: string; code: string; test: string
+    status: string; note?: string; sources: AlignmentSource[]
+  }[]
+}
+
 export const kb = {
   overview: () => call<KbOverview>('GET', '/kb'),
   search: (q: string, scope?: string) =>
     call<KbHit[]>('GET', `/kb/search?q=${encodeURIComponent(q)}${scope ? `&scope=${scope}` : ''}&k=8`),
   gaps: () => call<GapReport>('GET', '/gaps'),
+  alignment: () => call<Alignment>('GET', '/alignment'),
+  ask: (question: string, sessionId?: string | null, incidentId?: string | null) =>
+    call<AdviserAnswer>('POST', '/adviser', { question, session_id: sessionId ?? null, incident_id: incidentId ?? null }),
 }
 
 export function liveUrl(id: string): string {

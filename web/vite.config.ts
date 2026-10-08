@@ -12,6 +12,10 @@ export default defineConfig({
     proxy: {
       '/sessions': { target: backend, ws: true, changeOrigin: true },
       '/health': backend,
+      '/kb': backend,
+      '/gaps': backend,
+      '/adviser': backend,
+      '/alignment': backend,
     },
   },
   build: { chunkSizeWarningLimit: 2000 },

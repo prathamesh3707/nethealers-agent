@@ -195,6 +195,10 @@ class MemoryStore:
     def count(self) -> int:
         return len(self.meta)
 
+    def get(self, ids: list[str]) -> list[Passage]:
+        want = set(ids)
+        return [Passage(**m) for m in self.meta if m["id"] in want]
+
 
 class PgStore:
     """The index in Postgres with pgvector."""
@@ -242,6 +246,11 @@ class PgStore:
     def count(self) -> int:
         return self.conn.execute("SELECT count(*) FROM kb_passages").fetchone()[0]
 
+    def get(self, ids: list[str]) -> list[Passage]:
+        rows = self.conn.execute("SELECT id, doc_id, title, kind, page, text FROM kb_passages WHERE id = ANY(%s)",
+                                 (list(ids),)).fetchall()
+        return [Passage(*r) for r in rows]
+
 
 class Library:
     """Search the documents: `Library.open().search("can the agent change tower power on its own?")`."""
@@ -282,6 +291,10 @@ class Library:
             in_scope = [d for d, m in source_meta().items() if m.get("scope", "national") in scopes]
             docs = in_scope if docs is None else [d for d in docs if d in in_scope]
         return self.store.search(embed([query])[0], k, kinds, docs)
+
+    def get(self, ids: list[str]) -> dict[str, Passage]:
+        """Passages by their stable id (doc:page:chunk), for citations pinned in config files."""
+        return {p.id: p for p in self.store.get(ids)}
 
     def documents(self) -> list[dict]:
         """Each source with how many passages of it are in the index."""

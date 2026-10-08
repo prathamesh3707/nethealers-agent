@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { AgentEvent, Incident } from '../api'
 import { CAUSE, PLAIN_STEPS, plainAction, plainEvent, plainStepOf } from '../plain'
 import { useFocusedIncident, useGame } from '../store'
+import IncidentActions from './IncidentActions'
 
 const NONE: Incident[] = []
 const OPEN = (i: Incident) => !['resolved', 'false_alarm'].includes(i.status)
@@ -21,6 +22,7 @@ export default function SimplePanel() {
           <StepTrack incident={main} events={mine} />
           <TwinTest events={mine} />
           <Result events={mine} />
+          <IncidentActions incidentId={main.id} />
           {minor.length > 0 && (
             <p className="px-1 text-xs text-slate-500">
               Also being handled: {minor.length} smaller issue{minor.length > 1 ? 's' : ''} nearby

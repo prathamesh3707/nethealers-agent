@@ -145,3 +145,41 @@ def test_after_a_problem_is_removed_nothing_stays_stuck(client, problem):
     assert f["score"]["degraded_now"] <= f["without_agent"]["degraded_now"]
     s = SESSIONS[sid]
     assert all(abs(t.power_dbm - 33.0) <= 3 for t in s.world.towers)
+
+
+def test_an_incident_downloads_as_an_audit_report(client):
+    sid = start(client)["id"]
+    client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": BUS_POSITION[0], "y": BUS_POSITION[1]})
+    frame = step(client, sid, 12)
+    iid = frame["incidents"][0]["id"]
+    r = client.get(f"/sessions/{sid}/incidents/{iid}/report")
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    rep = r.json()
+    assert rep["incident"]["cause"] == "blockage" and rep["timeline"]
+    assert set(rep["manifest"]["sha256"]) == {"models/diagnosis.joblib", "config/policy.yaml", "config/intents.yaml"}
+    assert all({"fix", "predicted_gain_db", "measured_gain_db", "kept"} <= set(f) for f in rep["fixes_tried"])
+    assert client.get(f"/sessions/{sid}/incidents/INC-999/report").status_code == 404
+
+
+def test_questions_to_the_adviser_are_logged_but_are_not_a_loop_step(client):
+    sid = start(client)["id"]
+    client.post(f"/sessions/{sid}/problems", json={"kind": "bus", "x": BUS_POSITION[0], "y": BUS_POSITION[1]})
+    frame = step(client, sid, 6)
+    inc = frame["incidents"][0]
+    s = SESSIONS[sid]
+    brief = s.incident_brief(inc["id"])
+    assert brief["cause"] == "blockage" and "phones" not in brief  # counts only, no phone ids
+    s.log_consultation(inc["id"], {"question": "May it?", "verdict": "not established", "answer": "", "conditions": [],
+                                   "responsible": "", "recommended_action": "", "confidence": "low", "cited": [],
+                                   "passages": {}, "method": "test"})
+    events = client.get(f"/sessions/{sid}/incidents/{inc['id']}").json()["events"]
+    assert events[-1]["stage"] == "advise" and events[-1]["data"]["question"] == "May it?"
+    assert step(client, sid)["incidents"][0]["stage"] != "advise"
+    assert client.post("/adviser", json={"question": ""}).status_code == 422
+
+
+def test_itu_alignment_lists_the_pipeline_and_the_policy_trace(client):
+    d = client.get("/alignment").json()
+    assert [r["node"].split()[0] for r in d["y3172"]][:7] == ["SRC", "C", "PP", "M", "P", "D", "SINK"]
+    assert len(d["y3173"]) == 5 and len(d["ai_ready"]) == 6
+    assert all(r["sources"] for r in d["policy_to_control"])

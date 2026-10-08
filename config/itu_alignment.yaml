@@ -1,0 +1,170 @@
+# How NetHealers lines up with the ITU-T standards and the ITU AI Readiness framework, and how each policy
+# requirement becomes a control in the code. A mapping for discussion, not a claim of conformance.
+#
+# status:  demonstrated  works in the game and is covered by a test or the evaluation
+#          partial       works, with a limitation stated in `note`
+#          simulated     works against the simulator, not a live network
+#          planned       not built yet
+# `passages` are stable knowledge-base ids (doc:page:chunk); the Policy screen shows their text live.
+
+y3172:
+  - node: SRC (source)
+    ours: Phones' per-beam signal reports and the towers' load counters, every one-second tick
+    code: src/nethealers/sim/world.py
+    evidence: Phones and towers in the 3D street
+    status: simulated
+  - node: C (collector)
+    ours: Monitor collects the reports, ignores stale ones, flags phones 4 dB below their own normal for 2 ticks and groups them into incidents
+    code: src/nethealers/agent/monitor.py
+    evidence: The Observe step in the agent panel
+    status: demonstrated
+  - node: PP (preprocessor)
+    ours: Each input compared with just before, plus neighbourhood context; the channel turned into the 32 x 32 grid LWM expects
+    code: src/nethealers/diagnosis/features.py, src/nethealers/diagnosis/lwm.py
+    evidence: Diagnosis inputs listed in the diagnosis report
+    status: demonstrated
+  - node: M (model)
+    ours: Our diagnosis model (gradient-boosted trees with calibrated confidence, trained on 114,793 rows) using the frozen LWM foundation model's 64-number fingerprint
+    code: src/nethealers/diagnosis/train.py, src/nethealers/diagnosis/diagnose.py
+    evidence: The diagnosis card, with every cause's probability
+    status: demonstrated
+  - node: P (policy)
+    ours: The rule-checker with the operator's limits (power, tilt, cooldowns, harm, protected zones, autonomy); the LLM planner and safety adviser may only choose among options it has passed
+    code: src/nethealers/agent/rules.py, config/policy.yaml, src/nethealers/agent/roles.py
+    evidence: Rejected fixes, each with the rule that rejected it
+    status: demonstrated
+  - node: D (distributor)
+    ours: The executor applies one bounded change and reads the tower's settings back, so a command that was ignored is caught
+    code: src/nethealers/agent/agent.py, src/nethealers/sim/actions.py
+    evidence: The Act step; "tower ignored the change" escalations
+    status: demonstrated
+  - node: SINK
+    ours: Tower settings the agent may change - beam, power, tilt, handover offsets, load balance
+    code: src/nethealers/sim/actions.py
+    evidence: Towers turn amber in the 3D street when the agent has changed them
+    status: simulated
+  - node: MLFO (ML function orchestrator)
+    ours: The agent loop runs the pipeline for each incident, verifies the result, keeps or undoes the change, and escalates
+    code: src/nethealers/agent/agent.py
+    evidence: The eight-step loop in the agent panel
+    status: partial
+    note: One pipeline per incident; no separate orchestrator managing several ML pipelines or model updates.
+  - node: ML intent
+    ours: The operator's intents in plain words and the policy file
+    code: config/intents.yaml, config/policy.yaml
+    evidence: Policy screen, operator policy documents
+    status: partial
+    note: Written by hand, not in a formal intent language.
+  - node: ML sandbox subsystem (Y.3181)
+    ours: The digital twin rehearses every candidate fix for 3 ticks before anything touches the street; 240 scenario runs evaluate the whole agent offline
+    code: src/nethealers/agent/twin.py, src/nethealers/eval/
+    evidence: '"Digital twin: every fix it tried" panel; docs/evaluation_report.md'
+    status: demonstrated
+  - node: Digital twin network (Y.3090)
+    ours: Twin built from the map and settings, calibrated against pre-incident reports, with its prediction error tracked per tower
+    code: src/nethealers/agent/twin.py
+    evidence: Predicted vs measured gain after every fix
+    status: partial
+    note: One street, synchronised from simulated reports, not from a live network.
+
+# ITU-T Y.3173 rates five dimensions as done by a human, by a human and the system, or by the system.
+# The overall level is the lowest of the five, so with demand mapping done by people we claim no high level.
+y3173:
+  - dimension: Demand mapping
+    who: Human
+    ours: People write the operator policy and intents; the system does not translate new requirements by itself.
+  - dimension: Data collection
+    who: System
+    ours: Reports are collected every tick; stale ones are ignored automatically.
+  - dimension: Analysis
+    who: System
+    ours: The diagnosis model names the cause with a calibrated confidence.
+  - dimension: Decision
+    who: Human and system
+    ours: The agent decides small fixes alone when at least 80% sure; a person approves big power or tilt changes and unsure cases.
+  - dimension: Action implementation
+    who: System
+    ours: The agent applies the change, checks it after 3 seconds and undoes it automatically if it fell short.
+
+# The six dimensions of ITU's AI Ready framework.
+ai_ready:
+  - dimension: Open data
+    ours: The dataset generator, seeds and diagnosis report are in the repository; the data regenerates in about 12 minutes.
+    status: partial
+    note: The generated datasets themselves are not published.
+  - dimension: Research
+    ours: A wireless foundation model (LWM) applied to fault diagnosis; a 240-run evaluation against four baselines; a literature survey.
+    status: demonstrated
+  - dimension: Deployment
+    ours: Runs on a laptop processor with one command; FastAPI backend; the language model is optional.
+    status: partial
+    note: Not connected to a live network.
+  - dimension: Standards
+    ours: Mapped to ITU-T Y.3172, Y.3181, Y.3090 and Y.3173; the ITU-T standards are in the knowledge base.
+    status: demonstrated
+  - dimension: Open source
+    ours: Code on GitHub under the MIT licence.
+    status: planned
+    note: The repository is still private.
+  - dimension: Sandbox
+    ours: Digital twin and scenario evaluation today; a passage export and a retrieval switch ready for the ITU AI for Good Sandbox.
+    status: partial
+
+# From a policy requirement to the control in the code, the test, and the evidence a judge can see.
+policy_to_control:
+  - id: emergency-priority
+    policy: Messages for response and recovery during a public emergency are routed on priority
+    passages: [telecom-act-2023:9:3, operator-policy:intents:0]
+    actor: The Central or State Government directs; the operator implements
+    standard: Y.3172 policy node
+    control: Protected hospital zone - its tower keeps spare capacity (load at most 70%, with a safety margin and a hold after any breach); fixes that would use it up are rejected
+    code: src/nethealers/agent/rules.py, config/policy.yaml
+    test: Hospital-zone scenario - 0 zone breaches in 8 runs (rule fixer 24); tests/test_agent.py
+    status: demonstrated
+    note: Our zone rule goes further than the Act, which covers government-directed priority, not automatic capacity reserves.
+  - id: safety
+    policy: AI should be deployed reliably, with sufficient safeguards for everyone affected
+    passages: [niti-rai-2021:50:0, operator-policy:policy:0]
+    actor: The operator, as the deployer of the AI
+    standard: Y.3181 ML sandbox; Y.3172 policy node
+    control: Every fix rehearsed on the twin first; hard limits on power, tilt, cooldowns and harm to others; checked after 3 s and undone if it fell short
+    code: src/nethealers/agent/twin.py, src/nethealers/agent/rules.py, src/nethealers/agent/agent.py
+    test: 0 safety-limit breaks in 48 runs of the full agent; tests/test_agent.py
+    status: demonstrated
+  - id: accountability
+    policy: AI actors should be accountable for the proper functioning of AI systems
+    passages: [trai-ai-2023:27:2]
+    actor: The operator; a named person approves the bigger changes
+    standard: Y.3173 decision dimension (human and system)
+    control: The agent acts alone only on small fixes it is at least 80% sure of; bigger power or tilt changes wait for a person's approval, which is logged
+    code: src/nethealers/agent/rules.py, src/nethealers/api/session.py
+    test: tests/test_agent.py (asks a person for big or unsure changes)
+    status: demonstrated
+    note: Who is legally accountable for an autonomous change is not settled in the Indian documents; see the gap analysis.
+  - id: transparency
+    policy: The design and functioning of an AI system should be recorded and open to scrutiny and audit
+    passages: [niti-rai-2021:50:2]
+    actor: The operator
+    standard: Y.3172 (each pipeline node's output is logged)
+    control: Every step logged with its evidence, in PostgreSQL when it runs; the language model's reasons and cited passages; a downloadable incident report with predicted vs measured results
+    code: src/nethealers/agent/events.py, src/nethealers/api/app.py
+    test: tests/test_roles.py (decision log in Postgres); tests/test_api.py
+    status: demonstrated
+  - id: personal-data
+    policy: A data fiduciary must protect personal data with appropriate technical and organisational measures
+    passages: [dpdp-act-2023:7:4, operator-policy:intents:0]
+    actor: The operator, as data fiduciary
+    standard: Y.3174 data handling (not yet in the knowledge base)
+    control: The agent uses only signal measurements and rough positions, never call or message content; the policy adviser sees counts, not phone ids
+    code: src/nethealers/diagnosis/features.py, src/nethealers/api/session.py
+    test: No automated test yet
+    status: partial
+  - id: sandbox-testing
+    policy: An ML sandbox lets operators study the effect of ML outputs before deploying them
+    passages: [itu-y3181:10:5]
+    actor: The operator
+    standard: Y.3181
+    control: Digital-twin rehearsal of every fix, plus a 240-run scenario evaluation against four baselines
+    code: src/nethealers/agent/twin.py, src/nethealers/eval/
+    test: docs/evaluation_report.md
+    status: demonstrated

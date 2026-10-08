@@ -67,3 +67,14 @@ def test_the_agent_search_never_returns_foreign_documents():
     meta = source_meta()
     hits = lib.search("human oversight of AI systems that control critical infrastructure", k=8, scopes=AGENT_SCOPES)
     assert hits and all(meta[h.doc_id]["scope"] in AGENT_SCOPES for h in hits)
+
+
+def test_passages_pinned_in_the_itu_alignment_exist():
+    import yaml
+
+    lib = Library.open()
+    if lib.store.count() == 0:
+        pytest.skip("build the knowledge base first: scripts/build_library.py")
+    rows = yaml.safe_load((Path(__file__).resolve().parents[1] / "config" / "itu_alignment.yaml").read_text())
+    ids = {pid for r in rows["policy_to_control"] for pid in r["passages"]}
+    assert ids <= set(lib.get(sorted(ids)))  # ids change if the documents are re-split: re-pin them

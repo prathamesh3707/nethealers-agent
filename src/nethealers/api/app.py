@@ -15,6 +15,9 @@ POST /sessions/{id}/control            pause, resume, step, speed
 POST /sessions/{id}/answer             approve or reject a fix the agent asked about
 GET  /sessions/{id}/events?since=N     the agent's log
 GET  /sessions/{id}/incidents/{iid}    one incident's full timeline, for replay
+GET  /sessions/{id}/incidents/{iid}/report   download everything about one incident (JSON), for audit
+POST /adviser                          ask the policy and legal adviser a question (optionally about an incident)
+GET  /alignment                        ITU-T Y.3172 / Y.3173 / AI Ready mapping and the policy-to-control trace
 WS   /sessions/{id}/live               one frame per tick, with that tick's events
 
 If the game has been built (web/dist), it is served at / as well.
@@ -155,6 +158,75 @@ def gaps():
     return json.loads(f.read_text())
 
 
+class AskIn(BaseModel):
+    question: str = Field(..., min_length=3, max_length=500)
+    session_id: str | None = None
+    incident_id: str | None = None
+
+
+_ADVISER_LLM = None
+
+
+def adviser_llm():
+    """The adviser's own language-model client: longer timeout than the game's agent, answers cached on disk."""
+    global _ADVISER_LLM
+    if _ADVISER_LLM is None:
+        from ..llm import LLM
+
+        llm = LLM()
+        llm.timeout_s, llm.max_tokens = 60.0, 900
+        _ADVISER_LLM = llm if llm.ready else False
+    return _ADVISER_LLM or None
+
+
+@app.post("/adviser")
+async def ask_adviser(body: AskIn):
+    """The policy and legal adviser. It answers from the knowledge base with citations and only advises: it has
+    no way to change the network. The question and answer go into the session's audit log."""
+    from ..kb.adviser import ask
+
+    s = SESSIONS.get(body.session_id) if body.session_id else None
+    brief = None
+    if s is not None and body.incident_id:
+        try:
+            brief = await asyncio.to_thread(s.incident_brief, body.incident_id)
+        except KeyError:
+            raise HTTPException(404, f"no incident {body.incident_id}")
+    try:
+        out = await asyncio.to_thread(ask, body.question, library(), adviser_llm(), brief)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if s is not None:
+        await asyncio.to_thread(s.log_consultation, body.incident_id, out)
+    return out
+
+
+@app.get("/alignment")
+async def alignment():
+    """config/itu_alignment.yaml, with the text of every pinned passage looked up in the knowledge base."""
+    import yaml
+
+    from ..kb import source_meta
+    from ..kb.adviser import authority
+
+    data = yaml.safe_load((Path(__file__).resolve().parents[3] / "config" / "itu_alignment.yaml").read_text())
+    ids = sorted({pid for row in data.get("policy_to_control", []) for pid in row.get("passages", [])})
+    found = await asyncio.to_thread(lambda: library().get(ids))
+    meta = source_meta()
+    for row in data.get("policy_to_control", []):
+        row["sources"] = []
+        for pid in row.get("passages", []):
+            p = found.get(pid)
+            if p is None:  # not built yet, or the documents changed: say so rather than show nothing
+                row["sources"].append({"id": pid, "missing": True})
+                continue
+            m = meta.get(p.doc_id, {})
+            row["sources"].append({"id": pid, "title": p.title, "page": p.page, "url": m.get("url", ""),
+                                   "authority": authority(m.get("scope", ""), p.kind),
+                                   "excerpt": " ".join(p.text.split())[:500]})
+    return data
+
+
 @app.get("/health")
 def health():
     return {"ok": True, "sessions": len(SESSIONS)}
@@ -292,6 +364,26 @@ def incident(session_id: str, incident_id: str):
     if not s.agent or incident_id not in s.agent.incidents:
         raise HTTPException(404, f"no incident {incident_id}")
     return {"events": [e.to_dict() for e in s.agent.log.for_incident(incident_id)]}
+
+
+@app.get("/sessions/{session_id}/incidents/{incident_id}/report")
+async def incident_report(session_id: str, incident_id: str):
+    """One incident as a downloadable JSON file: version stamps, diagnosis, every fix with predicted vs measured
+    result, approvals, questions to the policy adviser and the full timeline."""
+    import json
+
+    from fastapi import Response
+
+    from ..agent.events import _jsonable
+
+    s = get(session_id)
+    try:
+        report = await asyncio.to_thread(s.incident_report, incident_id)
+    except KeyError:
+        raise HTTPException(404, f"no incident {incident_id}")
+    name = f"nethealers-{incident_id}-{session_id}.json"
+    return Response(json.dumps(report, indent=1, default=_jsonable, ensure_ascii=False), media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @app.websocket("/sessions/{session_id}/live")

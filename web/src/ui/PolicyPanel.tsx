@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { kb, type GapPassage, type GapReport, type GapTopic, type KbHit, type KbOverview } from '../api'
-import { useGame } from '../store'
+import { kb, type AdviserAnswer, type AdviserPassage, type GapPassage, type GapReport, type GapTopic, type KbHit, type KbOverview, type Verdict } from '../api'
+import { useGame, type PolicyTab } from '../store'
+import ItuAlignment from './ItuAlignment'
 
 /**
  * Policy & knowledge base: the gap analysis (what the host country's documents say about the problems our agent
@@ -13,6 +14,9 @@ const SEV = {
   medium: 'bg-amber-500/20 text-amber-300 ring-amber-500/40',
   low: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/40',
 } as const
+const TABS: [PolicyTab, string][] = [
+  ['ask', 'Ask the adviser'], ['gaps', 'Gap analysis'], ['kb', 'Knowledge base'], ['itu', 'ITU alignment'],
+]
 const SCOPE_LABEL: Record<string, string> = {
   national: 'India (host country)', operator: 'Operator policy', standard: 'ITU-T standards',
   global: 'Global examples', regional: 'Neighbouring countries',
@@ -25,7 +29,8 @@ const SCOPE_TONE: Record<string, string> = {
 export default function PolicyPanel() {
   const open = useGame((s) => s.policyOpen)
   const setOpen = useGame((s) => s.setPolicyOpen)
-  const [tab, setTab] = useState<'gaps' | 'kb'>('gaps')
+  const tab = useGame((s) => s.policyTab)
+  const setTab = (t: PolicyTab) => useGame.setState({ policyTab: t })
   const [report, setReport] = useState<GapReport | null>(null)
   const [overview, setOverview] = useState<KbOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -47,10 +52,10 @@ export default function PolicyPanel() {
           </div>
         </div>
         <div className="ml-6 flex overflow-hidden rounded-md border border-slate-700">
-          {(['gaps', 'kb'] as const).map((t) => (
+          {TABS.map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-3 py-1.5 text-sm ${tab === t ? 'bg-sky-500 text-sky-950' : 'text-slate-300 hover:bg-slate-800'}`}>
-              {t === 'gaps' ? 'Gap analysis' : 'Knowledge base'}
+              {label}
             </button>
           ))}
         </div>
@@ -58,9 +63,165 @@ export default function PolicyPanel() {
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {error && tab === 'gaps' && <p className="p-6 text-sm text-red-300">{error}</p>}
-        {tab === 'gaps' ? <Gaps report={report} /> : <Knowledge overview={overview} />}
+        {tab === 'ask' && <Ask />}
+        {tab === 'gaps' && <Gaps report={report} />}
+        {tab === 'kb' && <Knowledge overview={overview} />}
+        {tab === 'itu' && <ItuAlignment />}
       </div>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------- ask the adviser
+
+const VERDICT: Record<Verdict, { label: string; tone: string }> = {
+  allowed: { label: 'Allowed', tone: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/40' },
+  conditional: { label: 'Allowed, with conditions', tone: 'bg-amber-500/15 text-amber-300 ring-amber-500/40' },
+  'not allowed': { label: 'Not allowed', tone: 'bg-red-500/20 text-red-300 ring-red-500/40' },
+  'not established': { label: 'Not established by the documents', tone: 'bg-slate-700/60 text-slate-200 ring-slate-500/40' },
+}
+const EXAMPLES = [
+  'Can the agent move users onto the hospital tower during an emergency?',
+  'Can the agent raise tower power without a person approving it?',
+  'Who is accountable if an automatic network change causes an outage?',
+  'Can the agent use people’s location data to fix the network?',
+]
+
+function Ask() {
+  const sessionId = useGame((s) => s.sessionId)
+  const incidents = useGame((s) => s.frame?.incidents) ?? []
+  const chosen = useGame((s) => s.adviserIncident)
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [answers, setAnswers] = useState<AdviserAnswer[]>([])
+  const [shown, setShown] = useState(0)
+  const [cite, setCite] = useState<string | null>(null)
+  const ask = async (question: string) => {
+    if (!question.trim() || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const a = await kb.ask(question, sessionId, chosen)
+      setAnswers((xs) => [a, ...xs])
+      setShown(0)
+      setCite(null)
+      setQ('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const a = answers[shown]
+  const sources = a ? Object.entries(a.passages).sort(([x], [y]) => Number(!a.cited.includes(x)) - Number(!a.cited.includes(y))) : []
+  const p = a && cite ? a.passages[cite] : null
+  return (
+    <div className="grid h-full min-h-0 grid-cols-[1fr_380px]">
+      <div className="overflow-y-auto p-6">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-2xl font-bold text-slate-50">Ask the policy and legal adviser</h2>
+          <p className="mt-1 text-sm leading-relaxed text-slate-400">
+            It answers only from the knowledge base, says which passages carry legal weight in India, and says
+            “not established” when the documents don’t answer. It only advises: it has no way to change the network.
+            Every question and answer is saved in the audit log.
+          </p>
+          <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <label className="text-xs text-slate-400">About
+              <select value={chosen ?? ''} onChange={(e) => useGame.setState({ adviserIncident: e.target.value || null })}
+                className="ml-2 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200">
+                <option value="">a general question</option>
+                {incidents.map((i) => <option key={i.id} value={i.id}>{i.id} · {i.cause} {i.place} ({i.status})</option>)}
+              </select>
+            </label>
+            <div className="mt-3 flex gap-2">
+              <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void ask(q)}
+                placeholder="e.g. Can the agent move users onto the hospital tower during an emergency?"
+                className="flex-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-500" />
+              <button className="btn bg-sky-500 text-sky-950 hover:bg-sky-400" disabled={busy || !q.trim()} onClick={() => void ask(q)}>
+                {busy ? 'Reading the documents…' : 'Ask'}
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {EXAMPLES.map((x) => (
+                <button key={x} disabled={busy} onClick={() => { setQ(x); void ask(x) }}
+                  className="chip bg-slate-800 text-left text-slate-300 hover:bg-slate-700 hover:text-slate-100">{x}</button>
+              ))}
+            </div>
+          </div>
+          {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
+          {a && <AnswerCard a={a} onCite={setCite} />}
+          {answers.length > 1 && (
+            <div className="mt-6">
+              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Earlier questions</div>
+              <ul className="space-y-1">
+                {answers.map((x, i) => i !== shown && (
+                  <li key={i}>
+                    <button onClick={() => { setShown(i); setCite(null) }} className="w-full rounded-md bg-slate-900/70 px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-800">
+                      <span className={`chip mr-2 ring-1 ${VERDICT[x.verdict].tone}`}>{x.verdict}</span>{x.question}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+      <aside className="overflow-y-auto border-l border-slate-800 bg-slate-900/40 p-4">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{p ? `Source of ${cite}` : 'Passages it was given'}</div>
+        {!a && <p className="text-xs text-slate-500">Ask a question to see the passages behind the answer.</p>}
+        {p ? <PassageCard n={cite!} p={p} onBack={() => setCite(null)} /> : (
+          <ul className="space-y-1.5">
+            {sources.map(([n, x]) => (
+              <li key={n}>
+                <button onClick={() => setCite(n)} className={`w-full rounded-md p-2 text-left text-xs hover:bg-slate-800 ${a.cited.includes(n) ? 'bg-slate-800/80 ring-1 ring-sky-700' : 'bg-slate-900'}`}>
+                  <span className={`mr-1 font-semibold ${SCOPE_TONE[x.scope] ?? ''}`}>{n}</span>
+                  <span className="text-slate-300">{x.title}</span><span className="text-slate-500">, p. {x.page}</span>
+                  <div className="text-[10px] text-slate-400">{x.authority}{a.cited.includes(n) ? ' · cited' : ''}</div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </aside>
+    </div>
+  )
+}
+
+function AnswerCard({ a, onCite }: { a: AdviserAnswer; onCite: (n: string) => void }) {
+  const v = VERDICT[a.verdict]
+  const about = a.incident as { id?: string; cause?: string; place?: string } | null
+  return (
+    <article className="mt-5 rounded-xl border border-slate-700 bg-slate-900/80 p-5">
+      <div className="text-sm text-slate-400">“{a.question}”{about?.id && <span className="ml-2 chip bg-slate-800 text-slate-300">about {about.id}: {about.cause} {about.place}</span>}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className={`chip text-sm ring-1 ${v.tone}`}>{v.label}</span>
+        <span className="chip bg-slate-800 text-slate-400">confidence {a.confidence}</span>
+        <span className="text-[11px] text-slate-500">{a.method}</span>
+      </div>
+      <p className="mt-3 text-[15px] leading-relaxed text-slate-100"><Cited text={a.answer} passages={a.passages} onCite={onCite} /></p>
+      {a.conditions.length > 0 && (
+        <Section title="Conditions" tone="text-amber-300">
+          <ul className="list-disc space-y-1 pl-5">{a.conditions.map((c, i) => <li key={i}><Cited text={c} passages={a.passages} onCite={onCite} /></li>)}</ul>
+        </Section>
+      )}
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="rounded-lg bg-slate-950/60 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-sky-300">Who is responsible</div>
+          <div className="mt-1 text-sm text-slate-200"><Cited text={a.responsible} passages={a.passages} onCite={onCite} /></div>
+        </div>
+        <div className="rounded-lg bg-slate-950/60 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300">What the team should do</div>
+          <div className="mt-1 text-sm text-slate-200">{a.recommended_action ? <Cited text={a.recommended_action} passages={a.passages} onCite={onCite} /> : '–'}</div>
+        </div>
+      </div>
+      {a.elsewhere && (
+        <Section title="Elsewhere (does not apply in India)" tone="text-emerald-300">
+          <Cited text={a.elsewhere} passages={a.passages} onCite={onCite} />
+        </Section>
+      )}
+      {a.note && <p className="mt-3 rounded-md bg-amber-500/10 p-2 text-xs text-amber-200">{a.note}</p>}
+    </article>
   )
 }
 
@@ -119,7 +280,9 @@ function Gaps({ report }: { report: GapReport | null }) {
 }
 
 /** Text with [P3] / (P3, P4) citations turned into clickable passage chips. */
-function Cited({ text, t, onCite }: { text: string; t: GapTopic; onCite: (n: string) => void }) {
+type CitePassages = Record<string, { title: string; page: number; scope: string }>
+
+function Cited({ text, passages, onCite }: { text: string; passages: CitePassages; onCite: (n: string) => void }) {
   const parts = text.split(/(\[?\(?P\d+(?:,\s*P\d+)*\)?\]?)/g)
   return (
     <>
@@ -128,9 +291,9 @@ function Cited({ text, t, onCite }: { text: string; t: GapTopic; onCite: (n: str
         if (!nums || !/^[[(]?P\d+/.test(part)) return <Fragment key={i}>{part}</Fragment>
         return (
           <span key={i} className="whitespace-nowrap">
-            {nums.filter((n) => t.passages[n]).map((n) => (
-              <button key={n} onClick={() => onCite(n)} title={`${t.passages[n].title}, p. ${t.passages[n].page}`}
-                className={`mx-0.5 rounded px-1 text-[11px] font-semibold ring-1 ring-slate-600 hover:bg-slate-700 ${SCOPE_TONE[t.passages[n].scope] ?? ''}`}>
+            {nums.filter((n) => passages[n]).map((n) => (
+              <button key={n} onClick={() => onCite(n)} title={`${passages[n].title}, p. ${passages[n].page}`}
+                className={`mx-0.5 rounded px-1 text-[11px] font-semibold ring-1 ring-slate-600 hover:bg-slate-700 ${SCOPE_TONE[passages[n].scope] ?? ''}`}>
                 {n}
               </button>
             ))}
@@ -159,20 +322,20 @@ function Topic({ t }: { t: GapTopic }) {
         </div>
 
         <Section title="What India’s documents say" tone="text-orange-300">
-          <Cited text={t.national_position} t={t} onCite={setCite} />
+          <Cited text={t.national_position} passages={t.passages} onCite={setCite} />
         </Section>
 
         {t.gaps.length > 0 && (
           <Section title="Gaps" tone="text-red-300">
             <ul className="space-y-2">
               {t.gaps.map((g, i) => (
-                <li key={i}><span className="chip mr-2 bg-red-500/15 text-red-300">{g.type}</span><Cited text={g.summary} t={t} onCite={setCite} /></li>
+                <li key={i}><span className="chip mr-2 bg-red-500/15 text-red-300">{g.type}</span><Cited text={g.summary} passages={t.passages} onCite={setCite} /></li>
               ))}
             </ul>
           </Section>
         )}
         {t.conflicts && (
-          <Section title="Conflicting objectives" tone="text-amber-300"><Cited text={t.conflicts} t={t} onCite={setCite} /></Section>
+          <Section title="Conflicting objectives" tone="text-amber-300"><Cited text={t.conflicts} passages={t.passages} onCite={setCite} /></Section>
         )}
         {t.global_examples.length > 0 && (
           <Section title="How others handle it" tone="text-emerald-300">
@@ -186,7 +349,7 @@ function Topic({ t }: { t: GapTopic }) {
         )}
         {t.recommendation && (
           <Section title="What a rule or standard should clarify" tone="text-sky-300">
-            <Cited text={t.recommendation} t={t} onCite={setCite} />
+            <Cited text={t.recommendation} passages={t.passages} onCite={setCite} />
           </Section>
         )}
       </article>
@@ -235,18 +398,19 @@ function Examples({ items, t, onCite }: { items: GapTopic['global_examples']; t:
               {e.passage}
             </button>
           </div>
-          <div className="mt-0.5 text-sm text-slate-200"><Cited text={e.what_it_does} t={t} onCite={onCite} /></div>
+          <div className="mt-0.5 text-sm text-slate-200"><Cited text={e.what_it_does} passages={t.passages} onCite={onCite} /></div>
         </li>
       ))}
     </ul>
   )
 }
 
-function PassageCard({ n, p, onBack }: { n: string; p: GapPassage; onBack: () => void }) {
+function PassageCard({ n, p, onBack }: { n: string; p: GapPassage | AdviserPassage; onBack: () => void }) {
   return (
     <div>
       <button onClick={onBack} className="mb-2 text-xs text-sky-400 hover:underline">← all sources</button>
       <div className={`text-sm font-semibold ${SCOPE_TONE[p.scope] ?? ''}`}>{n} · {SCOPE_LABEL[p.scope] ?? p.scope}</div>
+      {'authority' in p && <div className="mt-0.5 text-xs font-medium text-slate-300">{p.authority}</div>}
       <div className="mt-1 text-sm text-slate-100">{p.title}</div>
       <div className="text-xs text-slate-400">page {p.page} · {p.country} · similarity {p.score.toFixed(2)}</div>
       <blockquote className="mt-3 border-l-2 border-slate-600 pl-3 text-[13px] italic leading-relaxed text-slate-300">“{p.excerpt}…”</blockquote>

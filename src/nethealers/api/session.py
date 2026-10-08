@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..agent import Agent, EventLog, Policy, Roles
+from ..agent.events import Event
 from ..sim import (
     add_blocker,
     add_external_interferer,
@@ -231,7 +232,7 @@ class Session:
         if self.agent:
             last_stage: dict[str, tuple[str, int]] = {}
             for e in self.agent.log.events:
-                if e.incident:
+                if e.incident and e.stage != "advise":  # a question to the adviser is not a step of the loop
                     last_stage[e.incident] = (e.stage, e.tick)
             for inc in self.agent.incidents.values():
                 stage, at = last_stage.get(inc.id, ("detect", inc.opened))
@@ -409,6 +410,86 @@ class Session:
                 raise LookupError(f"{incident_id} isn't waiting for an answer")
             self.operator.answers[incident_id] = decision
 
+    def incident_brief(self, incident_id: str) -> dict:
+        """A short summary of one incident for the policy adviser: no phone ids or positions, only what matters."""
+        with self.lock:
+            inc = self.agent.incidents.get(incident_id) if self.agent else None
+            if inc is None:
+                raise KeyError(incident_id)
+            w, r = self.world, self.world.last
+            zones = [{"zone": z.name, "tower": w.towers[z.tower].name, "limit": z.max_load,
+                      "load_now": round(float(r.load[z.tower]), 2) if r is not None else None} for z in w.zones]
+            steps = [e.text for e in self.agent.log.for_incident(incident_id) if e.stage != "advise"][-6:]
+            return {"id": inc.id, "place": inc.place, "phones_affected": len(inc.phones), "cause": inc.cause,
+                    "confidence": round(inc.confidence, 2), "status": inc.status,
+                    "fix_waiting_for_approval": inc.pending[0].text if inc.pending else None,
+                    "fixes_tried": len(inc.attempts), "fixes_kept": len(inc.kept), "protected_zones": zones,
+                    "recent_steps": steps}
+
+    def incident_report(self, incident_id: str) -> dict:
+        """Everything about one incident, for download: what the agent saw, what it predicted, what each rule and
+        role said, what a person approved, and what actually happened. Version stamps let it be reproduced."""
+        from datetime import datetime, timezone
+
+        from ..sim.actions import describe
+
+        with self.lock:
+            inc = self.agent.incidents.get(incident_id) if self.agent else None
+            if inc is None:
+                raise KeyError(incident_id)
+            events = [e.to_dict() for e in self.agent.log.for_incident(incident_id)]
+            fixes = []
+            for a in inc.attempts:
+                p = a.prediction
+                fixes.append({
+                    "tick": a.tick, "fix": p.text if p else describe(self.world, a.applied.action),
+                    "predicted_gain_db": round(p.gain_db, 2) if p else None,
+                    "predicted_other_phones_worse": p.harmed if p else None,
+                    "predicted_protected_zone_loads": {z: round(float(v), 3) for z, v in p.zone_loads.items()} if p else {},
+                    "measured_gain_db": round(a.measured_gain, 2) if a.measured_gain is not None else None,
+                    "kept": a.kept})
+            roles = self.agent.roles
+            llm = roles.llm if roles is not None else None
+            return {
+                "manifest": {
+                    "report": "NetHealers incident report",
+                    "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    "session": self.id, "street": self.world.name, "seed": self.world.seed,
+                    "tick_now": self.world.tick, "code_version": _git_commit(),
+                    "sha256": {f: _sha256(ROOT / f) for f in ("models/diagnosis.joblib", "config/policy.yaml",
+                                                               "config/intents.yaml")},
+                    "language_model": ", ".join(llm.ready) if llm is not None and roles.live else "off (plain rules)",
+                    "note": "Simulated network. Every number comes from the simulator and the agent's own log.",
+                },
+                "incident": {
+                    "id": inc.id, "place": inc.place, "phones": inc.phones, "status": inc.status,
+                    "outcome": inc.outcome, "opened_tick": inc.opened, "closed_tick": inc.closed_tick,
+                    "cause": inc.cause, "confidence": round(inc.confidence, 3),
+                    "probabilities": {k: round(v, 3) for k, v in inc.probs.items()},
+                    "decision_ms": round(1000 * sum(inc.decision_seconds), 1),
+                },
+                "fixes_tried": fixes,
+                "asked_a_person": [e for e in events if e["stage"] in ("escalate", "approve")],
+                "policy_adviser": [e for e in events if e["stage"] == "advise"],
+                "timeline": events,
+            }
+
+    def log_consultation(self, incident_id: str | None, result: dict) -> None:
+        """Put a question to the policy adviser, and its answer, in the audit log (and Postgres, if running)."""
+        if not self.agent:
+            return
+        sources = [{"n": n, "title": p["title"], "page": p["page"], "authority": p["authority"]}
+                   for n, p in result["passages"].items() if n in result.get("cited", [])]
+        with self.lock:
+            self.agent.log.add(Event(
+                self.world.tick, "advise", "adviser",
+                f"Policy adviser asked: \u201c{result['question']}\u201d Answer: {result['verdict']}.",
+                incident_id if incident_id in self.agent.incidents else None,
+                {"question": result["question"], "verdict": result["verdict"], "answer": result["answer"],
+                 "conditions": result["conditions"], "responsible": result["responsible"],
+                 "recommended_action": result["recommended_action"], "confidence": result["confidence"],
+                 "sources": sources, "method": result["method"]}))
+
     def resume(self) -> None:
         self.error, self.paused = None, False
 
@@ -416,6 +497,31 @@ class Session:
         r = self.world.last
         d = np.hypot(r.xy[:, 0] - float(x), r.xy[:, 1] - float(y))
         return [int(r.ue_ids[i]) for i in np.argsort(d) if d[i] < radius]
+
+
+ROOT = __import__("pathlib").Path(__file__).resolve().parents[3]
+_COMMIT: list[str] = []
+
+
+def _git_commit() -> str:
+    if not _COMMIT:
+        import subprocess
+
+        try:
+            out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True,
+                                 timeout=5)
+            dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT,
+                                   capture_output=True, text=True, timeout=5).stdout.strip()
+            _COMMIT.append((out.stdout.strip() or "unknown") + ("+local changes" if dirty else ""))
+        except Exception:
+            _COMMIT.append("unknown")
+    return _COMMIT[0]
+
+
+def _sha256(path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else "missing"
 
 
 def new_session(layout: str = "station_road", seed: int = 7, agent: bool = True, language_model: bool = True,

@@ -7,8 +7,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 STAGES = ("detect", "diagnose", "rehearse", "check", "plan", "review", "act", "verify", "undo", "escalate", "approve",
-          "withdraw", "resolve", "note")
-AGENTS = ("monitor", "diagnosis", "planner", "twin", "safety", "executor", "verifier", "operator")
+          "withdraw", "resolve", "note", "advise")
+AGENTS = ("monitor", "diagnosis", "planner", "twin", "safety", "executor", "verifier", "operator", "adviser")
 
 
 @dataclass

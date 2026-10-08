@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, type AgentEvent, type Incident } from '../api'
 import { CAUSE_LABEL, STAGE_LABEL, STATUS_LABEL, STEPS, ms, stepOf } from '../stages'
 import { useFocusedIncident, useGame } from '../store'
+import IncidentActions from './IncidentActions'
 
 const NONE: Incident[] = []
 
@@ -17,6 +18,7 @@ export default function AgentPanel() {
       {focus ? (
         <>
           <Loop incident={focus} replay={replay} />
+          <IncidentActions incidentId={focus.id} />
           <IncidentCard incident={focus} />
           <Rehearsal incident={focus} />
           <Timeline incident={focus} replay={replay} setReplay={setReplay} />

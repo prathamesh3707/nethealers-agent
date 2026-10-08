@@ -3,6 +3,8 @@ import { create } from 'zustand'
 import { api, ApiError, liveUrl, type AgentEvent, type Frame, type Incident, type NewGame, type NewProblem, type Scene } from './api'
 import { laneY } from './scene/vehicleGeometry'
 
+export type PolicyTab = 'ask' | 'gaps' | 'kb' | 'itu'
+
 export type Tool =
   | { kind: 'bus' | 'truck' | 'car'; drive: boolean }
   | { kind: 'crowd' | 'kiosk' | 'hoarding' | 'stuck_beam' | 'booster' | 'crowd_surge' | 'misconfig' }
@@ -45,6 +47,9 @@ interface Store {
   setDemo: (on: boolean) => void
   policyOpen: boolean // the policy & knowledge base screen
   setPolicyOpen: (open: boolean) => void
+  policyTab: PolicyTab
+  adviserIncident: string | null // the incident the adviser is asked about, if any
+  openPolicy: (tab: PolicyTab, incident?: string | null) => void
 
   setMode: (m: 'simple' | 'expert') => void
   setIntro: (open: boolean) => void
@@ -121,6 +126,9 @@ export const useGame = create<Store>((set, get) => {
     setDemo: (demo) => set({ demo, tour: null }),
     policyOpen: false,
     setPolicyOpen: (policyOpen) => set({ policyOpen }),
+    policyTab: 'ask',
+    adviserIncident: null,
+    openPolicy: (policyTab, incident) => set({ policyOpen: true, policyTab, adviserIncident: incident ?? null }),
 
     setMode(mode) { save(MODE_KEY, mode); set({ mode }) },
     setIntro(open) { if (!open) save(INTRO_KEY, '1'); set({ introOpen: open }) },
