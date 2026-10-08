@@ -21,7 +21,7 @@ import json
 import re
 
 from ..llm import LLM, LLMUnavailable
-from .gaps import gather
+from .gaps import gather, split_groups
 from .library import Hit, Library, source_meta
 
 VERDICTS = ("allowed", "conditional", "not allowed", "not established")
@@ -72,15 +72,9 @@ Reply with JSON only:
  "confidence": "high|medium|low"}"""
 
 
-def _split_groups(text: str) -> str:
-    """"[P2, P3]" or "(P2, P3)" -> "[P2] [P3]", so every citation is checked on its own."""
-    return re.sub(r"[\[(]\s*(P\d+(?:\s*[,;]\s*P\d+)+)\s*[\])]",
-                  lambda m: " ".join(f"[{x}]" for x in re.findall(r"P\d+", m.group(1))), str(text or ""))
-
-
 def _clean(text: str, valid: set[str]) -> str:
     """Drop citations to passages the model was not given, and tidy what is left."""
-    text = re.sub(r"\[incident[^\]]*\]", "(the incident on screen)", _split_groups(text), flags=re.I)
+    text = re.sub(r"\[incident[^\]]*\]", "(the incident on screen)", split_groups(text), flags=re.I)
     text = re.sub(r"\[(P\d+)\]", lambda m: m.group(0) if m.group(1) in valid else "", text)
     return re.sub(r"\s+([.,;:])", r"\1", re.sub(r"\s{2,}", " ", text)).strip()
 

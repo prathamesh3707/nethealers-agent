@@ -224,15 +224,15 @@
      "excerpt": "e fees and charges levied for any service provided under this Act; (d) specifying the categories and criteria of licenses to be issued under this Act; (e) providing for terms and conditions, form and duration, procedure for application, renewal, suspension, cancellation of such licences and appeal against the refusal, suspension or cancellation of licences; Regulations"
     }
    },
-   "national_position": "Indian national documents emphasize accountability of AI actors based on their roles and context, highlighting the need for identifiable and accountable persons responsible for AI system outcomes and human oversight, but do not specify legal accountability for automatic network configuration changes by AI agents or clarify liability among operator, AI vendor, or approver [P1, P3, P6]. The principles are voluntary and designed to prompt consideration rather than impose binding obligations [P3, P4].",
+   "national_position": "Indian national documents emphasize accountability of AI actors based on their roles and context, with principles encouraging identification and accountability for AI system outcomes and human oversight, but these are voluntary and do not specify legal liability for automated network configuration changes [P1] [P3] [P6]. The principles promote transparency, contestability, and reliability but lack explicit assignment of legal accountability among operator, AI vendor, or approver [P1] [P3] [P6].",
    "gaps": [
     {
-     "type": "legislative gap",
-     "summary": "Indian national policies and recommendations lack explicit legal provisions clarifying who is legally accountable when an AI system autonomously changes live network configurations and causes harm, leaving ambiguity between operator, AI vendor, and approver liability [P1, P3, P6]."
+     "type": "legal coverage",
+     "summary": "Indian national AI guidelines and telecom recommendations promote accountability in principle but do not legally define who is accountable when an AI system autonomously changes live network configurations and causes harm, leaving a legal accountability gap [P1] [P3] [P6]."
     },
     {
-     "type": "unclear responsibility",
-     "summary": "While accountability is emphasized, the specific assignment of responsibility among AI actors in the telecom domain for autonomous network changes is not clearly defined in Indian documents, creating uncertainty in practical enforcement [P1, P3]."
+     "type": "responsibility",
+     "summary": "It is unclear who among the operator, AI vendor, or approving personnel is legally responsible for adverse outcomes from AI-driven network changes, as national documents do not clarify assignment of accountability in such scenarios [P1] [P3]."
     }
    ],
    "conflicts": "",
@@ -243,21 +243,21 @@
      "jurisdiction": "United States",
      "title": "NIST AI Risk Management Framework (AI RMF 1.0), NIST AI 100-1 (2023)",
      "page": 21,
-     "what_it_does": "NIST AI RMF highlights the importance of considering the role of AI actors in accountability for AI system outcomes and adjusting transparency and accountability practices proportionally to risk."
+     "what_it_does": "NIST AI RMF highlights the need to consider roles of AI actors for accountability and recommends proportional transparency and accountability practices based on risk severity."
     },
     {
      "passage": "P12",
      "jurisdiction": "Singapore",
      "title": "Singapore Model Artificial Intelligence Governance Framework, Second Edition (2020)",
      "page": 66,
-     "what_it_does": "Singapore's AI Governance Framework mandates that designers and operators are responsible and accountable for AI systems, with designated roles for timely remedy of adverse effects."
+     "what_it_does": "Singapore's AI Governance Framework assigns responsibility and accountability to designers and operators, mandates transparent operation, and designates persons responsible for remedying adverse effects."
     },
     {
      "passage": "P15",
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 72,
-     "what_it_does": "EU AI Act requires assignment of human oversight roles with competence and authority to intervene in high-risk AI systems to avoid negative consequences."
+     "what_it_does": "EU AI Act requires assignment of human oversight roles with competence and authority to intervene in high-risk AI systems to prevent or mitigate negative consequences."
     }
    ],
    "regional": [
@@ -266,19 +266,19 @@
      "jurisdiction": "Bangladesh",
      "title": "Bangladesh Telecommunication Act, 2001 (authentic English text)",
      "page": 39,
-     "what_it_does": "Bangladesh Telecommunication Act includes provisions for compensation and restoration plans related to telecommunication services but does not explicitly address AI accountability."
+     "what_it_does": "Bangladesh Telecommunication Act includes provisions for compensation and restoration plans but does not explicitly address AI accountability."
     },
     {
      "passage": "P17",
      "jurisdiction": "Nepal",
      "title": "Nepal Telecommunications Act, 2053 (1997), up to date English text",
      "page": 15,
-     "what_it_does": "Nepal Telecommunications Act provides for fines and compensation for misuse or damage related to telecommunications services but lacks AI-specific accountability rules."
+     "what_it_does": "Nepal Telecommunications Act allows fines and compensation for unauthorized or harmful telecom operations but lacks AI-specific accountability rules."
     }
    ],
-   "recommendation": "Indian regulations should explicitly define legal accountability for autonomous AI-driven network configuration changes, clarifying the roles and liabilities of operators, AI vendors, and approvers. Standards should mandate human oversight mechanisms and transparent logging to enable attribution and redress in case of adverse outcomes.",
+   "recommendation": "Indian regulations should explicitly define legal accountability for AI-driven autonomous network changes, clarifying the roles and liabilities of operators, AI vendors, and approvers. Standards should require mechanisms for human oversight, logging, and transparent assignment of responsibility to ensure clear legal recourse and risk management.",
    "confidence": "high",
-   "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+   "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
   },
   {
    "id": "human-oversight",
@@ -504,15 +504,19 @@
      "excerpt": "or telecommunication services provided, by the Ministry of Foreign Affairs or any intelligence agency of th e Government for its own requirement ; (f) telecommunication system established in, or used by, a battle -ship or defence-aircraft engaged in state affairs. 36. Exclusive authority of Commission to issue licence and its procedure .- (1) The Commission shall have exclusive authority to issue licence for activiti"
     }
    },
-   "national_position": "The national documents from TRAI highlight the need for a new legal framework or authority to handle AI technologies in telecom, including oversight and compliance mechanisms, but do not specify the level of human oversight required before AI acts on critical telecom infrastructure [P1, P3, P4, P5]. The operator's own policy allows the AI agent to make small changes autonomously but requires human approval for larger changes, such as power adjustments above 1 dB or tilt changes above 1 degree; these thresholds are operator-defined and not mandated by any law or regulation [P7].",
+   "national_position": "The TRAI recommendations discuss the need for a new legal framework or authority to oversee AI in telecommunications, including compliance and enforcement mechanisms, but do not specify explicit requirements for human oversight or approval levels before AI acts on critical telecom infrastructure [P1] [P3] [P4] [P5] [P6]. The operator's own policy allows the AI agent to make small changes autonomously but requires human approval for larger changes, with thresholds set by the operator rather than by law or regulation [P7].",
    "gaps": [
     {
-     "type": "legislative gap",
-     "summary": "There is no explicit national legislation or regulation in India that defines the required level of human oversight or approval before an AI system may act on critical telecommunication infrastructure; current operator policies are self-determined without legal mandates [P1, P3, P7]."
+     "type": "legal coverage",
+     "summary": "Indian national regulations and TRAI recommendations do not specify the level of human oversight or approval required before an AI system may act on critical telecommunication infrastructure, leaving this to operator discretion [P1] [P3] [P4] [P5] [P7]."
     },
     {
-     "type": "unclear responsibility",
-     "summary": "The national recommendations suggest the need for a multi-stakeholder body to oversee AI compliance in telecom but do not clarify who is responsible for approving AI actions on critical infrastructure [P3, P5]."
+     "type": "responsibility",
+     "summary": "There is no clear assignment of responsibility or accountability for decisions made autonomously by AI systems in critical telecom infrastructure within the national framework [P1] [P3] [P4] [P5]."
+    },
+    {
+     "type": "evaluation",
+     "summary": "No mechanisms or standards are described in the national documents for testing or certifying AI systems before deployment or for ongoing evaluation of their autonomous actions in telecom networks [P1] [P3] [P4] [P5]."
     }
    ],
    "conflicts": "",
@@ -523,35 +527,35 @@
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 72,
-     "what_it_does": "The EU AI Act requires that natural persons assigned human oversight have the competence, training, and authority to intervene in high-risk AI systems to avoid negative consequences."
+     "what_it_does": "The EU AI Act requires that natural persons assigned human oversight have competence, training, and authority to intervene or stop high-risk AI systems."
     },
     {
      "passage": "P12",
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 72,
-     "what_it_does": "The EU AI Act mandates that high-risk AI systems include in-built operational constraints responsive to human operators who oversee the system throughout its lifecycle."
+     "what_it_does": "The EU AI Act mandates in-built operational constraints in high-risk AI systems to ensure responsiveness to human operators and prevent autonomous override."
     },
     {
      "passage": "P13",
      "jurisdiction": "Singapore",
      "title": "Singapore Model Artificial Intelligence Governance Framework, Second Edition (2020)",
      "page": 28,
-     "what_it_does": "Singapore's AI Governance Framework guides organizations to determine appropriate human oversight levels based on commercial objectives and risk assessments."
+     "what_it_does": "Singapore's AI Governance Framework guides organizations to determine appropriate human oversight based on risk and commercial objectives."
     },
     {
      "passage": "P14",
      "jurisdiction": "Singapore",
      "title": "Singapore Model Artificial Intelligence Governance Framework, Second Edition (2020)",
      "page": 31,
-     "what_it_does": "Singapore recommends that safety-critical AI systems allow human operators to assume control and safely shut down the system if needed."
+     "what_it_does": "Singapore recommends that safety-critical AI systems allow human control with sufficient information to make meaningful decisions or safely shut down the system."
     },
     {
      "passage": "P15",
      "jurisdiction": "United States",
      "title": "NIST AI Risk Management Framework (AI RMF 1.0), NIST AI 100-1 (2023)",
      "page": 45,
-     "what_it_does": "NIST AI Risk Management Framework emphasizes clearly defining human roles and responsibilities in AI decision-making and oversight, ranging from fully autonomous to fully manual."
+     "what_it_does": "NIST AI Risk Management Framework emphasizes clearly defining human roles and responsibilities in AI decision-making and oversight."
     }
    ],
    "regional": [
@@ -560,12 +564,12 @@
      "jurisdiction": "Sri Lanka",
      "title": "Sri Lanka Personal Data Protection Act, No. 9 of 2022",
      "page": 12,
-     "what_it_does": "Sri Lanka's Personal Data Protection Act allows automated decisions only if authorized by law or consent, with safeguards to protect data subject rights."
+     "what_it_does": "Sri Lanka's data protection law requires safeguards for automated decisions impacting rights, including authorization and consent mechanisms."
     }
    ],
-   "recommendation": "India should establish clear regulatory requirements defining the level of human oversight and approval needed before AI systems act on critical telecommunication infrastructure, including thresholds for autonomous actions and mandatory human intervention points. Additionally, a designated authority or multi-stakeholder body should be empowered to enforce compliance and oversee AI deployment in telecom networks to ensure safety and trust.",
+   "recommendation": "Indian regulations should clarify the required level of human oversight and approval for AI systems acting on critical telecom infrastructure, including defining thresholds for autonomous actions and mandatory human intervention. Additionally, clear assignment of responsibility and mechanisms for evaluation and certification of AI systems should be established to ensure safety and accountability.",
    "confidence": "high",
-   "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+   "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
   },
   {
    "id": "emergency-priority",
@@ -791,15 +795,15 @@
      "excerpt": "formation and each time where a message is sent, provide to the data subject details on how to opt-out of receiving solicited messages free of charge. (4) A controller using postal, electronic, telecommunication or any other similar means to disseminate any solicited message, shall inform the data subjects, to whom such messages are intended, of the nature of the message and the identity of the controller or third pa"
     }
    },
-   "national_position": "The Telecommunications Act, 2023 provides that during public emergency or in the interest of public safety, the Central or State Government or an authorised officer may direct that messages of authorised users or groups be routed on priority, with reasons recorded in writing [P2, P3]. The Act also allows the government to take temporary possession of telecommunication services or networks during emergencies and to provide mechanisms for priority routing [P3]. However, there is no explicit mention of reserving or prioritising capacity specifically for hospitals or emergency services, nor is there a clear delegation of who decides or attests that traffic is urgent. The operator's policy explicitly reserves spare capacity for medical and emergency traffic in the hospital zone and enforces this in its AI agent [P7].",
+   "national_position": "The Telecommunications Act, 2023 empowers the Central or State Government or authorized officers to direct priority routing of messages for users or groups authorized for response and recovery during public emergencies or in the interest of public safety, with procedures and safeguards prescribed and reasons recorded in writing [P2] [P3]. However, the Act does not explicitly mention reserving or prioritizing network capacity specifically for hospitals or emergency services, nor does it specify who decides or attests that traffic is urgent. The operator's policy explicitly reserves spare capacity for medical and emergency traffic at hospital zones and enforces this in the AI agent's behavior [P7].",
    "gaps": [
     {
-     "type": "legislative gap",
-     "summary": "The national law authorises priority routing during public emergencies but does not explicitly address reserving or prioritising network capacity for hospitals or emergency services, nor does it specify who decides or attests to the urgency of traffic [P2, P3]."
+     "type": "legal coverage",
+     "summary": "The national law provides for priority routing of messages during public emergencies but does not explicitly address reserving or prioritizing network capacity for hospitals or emergency services, nor does it clarify who decides or attests that traffic is urgent [P2] [P3]."
     },
     {
-     "type": "unclear responsibility",
-     "summary": "There is no clear legal or regulatory provision identifying the authority responsible for deciding or attesting that certain traffic is urgent and should be prioritised or capacity reserved, leaving this to operator policy without statutory backing [P2, P3, P7]."
+     "type": "responsibility",
+     "summary": "It is unclear from the national law who is responsible for deciding or attesting that certain traffic is urgent and should be prioritized or reserved capacity in the network [P2] [P3]."
     }
    ],
    "conflicts": "",
@@ -810,14 +814,14 @@
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 56,
-     "what_it_does": "The EU AI Act classifies AI systems used to prioritise emergency calls and dispatch emergency services as high-risk, implying regulatory oversight on decision-making in critical situations."
+     "what_it_does": "The EU AI Act classifies AI systems used to evaluate and classify emergency calls or to dispatch and prioritize emergency first response services as high-risk due to their critical impact on life and health."
     },
     {
      "passage": "P12",
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 427,
-     "what_it_does": "The EU AI Act further specifies AI systems used to evaluate and classify emergency calls and establish priority in dispatching emergency first response services as high-risk."
+     "what_it_does": "The EU AI Act specifies AI systems used for emergency call evaluation and dispatching priority as high-risk and subject to strict regulation."
     }
    ],
    "regional": [
@@ -826,19 +830,19 @@
      "jurisdiction": "Bangladesh",
      "title": "Bangladesh Telecommunication Act, 2001 (authentic English text)",
      "page": 8,
-     "what_it_does": "The Bangladesh Telecommunication Act includes provisions for preferential rights of government in emergencies, suggesting some priority mechanisms."
+     "what_it_does": "Bangladesh Telecom Act includes provisions for preferential rights of government in emergencies."
     },
     {
      "passage": "P17",
      "jurisdiction": "Nepal",
      "title": "Nepal Telecommunications Act, 2053 (1997), up to date English text",
      "page": 6,
-     "what_it_does": "The Nepal Telecommunications Act grants the government special powers to control transmission systems during emergencies or national security situations."
+     "what_it_does": "Nepal Telecommunications Act grants government special powers to control transmission systems during emergencies or national security events."
     }
    ],
-   "recommendation": "Rules or standards should explicitly authorise network operators to reserve or prioritise capacity for hospitals and emergency services during emergencies, and clearly designate the authority responsible for attesting traffic urgency. This clarity will support autonomous AI agents in making lawful prioritisation decisions aligned with public safety objectives.",
+   "recommendation": "The law or regulations should explicitly authorize network operators to reserve or prioritize capacity for hospitals and emergency services during emergencies and clearly designate the authority or mechanism responsible for attesting that traffic is urgent. Standards or policies should also define criteria and processes for such prioritization to guide autonomous AI agents in network management.",
    "confidence": "high",
-   "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+   "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
   },
   {
    "id": "location-data",
@@ -1064,15 +1068,15 @@
      "excerpt": "ounds or intelligence have been subjected to rearrangement, computation or other change in any manner for their emission, transmission or reception. (b) \"Telecommunications Line\" means any wire, cable, equipment, tower, mast, antenna, tunnel, hole, pit, pole or other structure or object used or to be used in connection with a Telecommunications System. (c) \"Telecommunications System\" means equipment or series of equi"
     }
    },
-   "national_position": "The Digital Personal Data Protection Act, 2023 defines personal data processing with consent and lawful purpose requirements, including the right to withdraw consent and the need for notice about data and purpose before processing (P2, P3, P4, P6). The Telecommunications Act, 2023 allows government rules on collection and analysis of traffic data, which includes data generated or transmitted in telecom networks but does not explicitly define phone signal measurements or approximate location as personal data (P1). The operator policy restricts use to signal measurements and rough positions, forbids use of call/message content, and limits retention of location trails to the minimum needed for troubleshooting (P7).",
+   "national_position": "The Digital Personal Data Protection Act, 2023 defines personal data processing with consent and lawful purpose requirements, including notice to the data principal about the data and purpose, and rights to withdraw consent [P2] [P3] [P4] [P6]. The Telecommunications Act, 2023 allows for collection and analysis of traffic data generated or transmitted in telecom networks, but does not explicitly define signal measurements or approximate location as personal data (P1). The operator policy restricts use to signal measurements and rough positions without retaining location trails longer than needed (P7).",
    "gaps": [
     {
-     "type": "legislative gap",
-     "summary": "Indian law does not explicitly clarify whether phone signal measurements and approximate location used for automated network troubleshooting constitute personal data subject to consent, purpose limitation, and retention rules, creating uncertainty for AI agents using such data (P1, P2, P3, P4, P7)."
+     "type": "data",
+     "summary": "The national law does not explicitly clarify whether phone signal measurements and approximate location used for automated network troubleshooting constitute personal data, nor does it specify consent, purpose limitation, or retention rules for such data in this context [P1] [P2] [P3] [P4] [P7]."
     },
     {
-     "type": "unclear responsibility",
-     "summary": "The Telecommunications Act allows government rules on traffic data but does not specify responsibilities or limits for operators using signal and location data for AI troubleshooting, leaving ambiguity on compliance and oversight (P1, P7)."
+     "type": "legal coverage",
+     "summary": "There is no explicit legal provision addressing consent, purpose limits, and retention specifically for signal measurement and approximate location data used by autonomous AI agents in telecom network troubleshooting [P1] [P2] [P3] [P4] [P7]."
     }
    ],
    "conflicts": "",
@@ -1083,21 +1087,21 @@
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 205,
-     "what_it_does": "EU AI Act mandates strict controls, consent, purpose limitation, and deletion for processing personal data including special categories in AI systems."
+     "what_it_does": "The EU AI Act mandates strict controls, consent, and deletion requirements for processing special categories of personal data in AI systems."
     },
     {
      "passage": "P12",
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 205,
-     "what_it_does": "EU AI Act requires technical and organizational safeguards such as pseudonymisation and access control for sensitive personal data in AI."
+     "what_it_does": "The EU AI Act requires technical and organizational safeguards for special categories of personal data, including pseudonymisation and access controls."
     },
     {
      "passage": "P15",
      "jurisdiction": "United States",
      "title": "NIST AI Risk Management Framework (AI RMF 1.0), NIST AI 100-1 (2023)",
      "page": 22,
-     "what_it_does": "NIST AI Risk Management Framework emphasizes privacy norms including consent and control in AI system design."
+     "what_it_does": "The NIST AI Risk Management Framework emphasizes privacy norms including consent, confidentiality, and control in AI system design."
     }
    ],
    "regional": [
@@ -1106,12 +1110,12 @@
      "jurisdiction": "Sri Lanka",
      "title": "Sri Lanka Personal Data Protection Act, No. 9 of 2022",
      "page": 56,
-     "what_it_does": "Sri Lanka Personal Data Protection Act allows processing personal data for network security with necessity and proportionality, with consent requirements for special categories."
+     "what_it_does": "Sri Lanka's Personal Data Protection Act allows processing of personal data strictly necessary for network and information security, subject to consent and safeguards."
     }
    ],
-   "recommendation": "Indian regulations should explicitly clarify that phone signal measurements and approximate location used for automated network troubleshooting are personal data subject to consent, purpose limitation, and retention rules. They should also define responsibilities for operators and government oversight to ensure lawful, minimal, and secure processing in AI-driven self-healing networks.",
+   "recommendation": "Indian regulations should clarify whether phone signal measurements and approximate location data used in AI-driven network troubleshooting qualify as personal data, and specify consent requirements, purpose limitations, and retention periods for such data. This would ensure compliance with data protection principles while enabling effective autonomous network management.",
    "confidence": "high",
-   "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+   "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
   },
   {
    "id": "sandbox-testing",
@@ -1313,11 +1317,15 @@
      "excerpt": "reason to believe, that any controller or processor– (a) is engaged in, or is about to engage in any processing activity in contravention of this Act; or (b) has contravened or failed to comply with or is likely to contravene or, fails to comply with the provisions of this Act or any rule under paragraph (d), (e) or (f) of section 52, any regulation, guideline or Order made under this Act or under any other written l"
     }
    },
-   "national_position": "The Indian Telecommunications Act, 2023 explicitly provides for the creation of regulatory sandboxes as live testing environments where new products, services, processes, and business models can be deployed on a limited set of users with certain relaxations from regulatory provisions [P5]. TRAI recommendations support the use of regulatory sandboxes to facilitate controlled testing and experimentation of AI systems, reducing risks and compliance costs [P2], and propose sandboxing and controlled deployments as risk-based regulatory interventions for AI systems [P3]. However, there is no explicit mention of mandatory use of digital twins or regulatory sandboxes specifically for AI systems acting on live 5G networks, though the concept of regulatory sandboxes is endorsed for AI innovation and experimentation [P1, P4].",
+   "national_position": "India's Telecommunications Act, 2023 explicitly provides for the creation of regulatory sandboxes as live testing environments where new products and services can be tested on a limited user base with certain relaxations from regulatory provisions [P5]. TRAI recommendations support the establishment of regulatory sandboxes to facilitate controlled experimentation and reduce compliance risks, highlighting their usefulness for AI systems in telecom [P1] [P2] [P4]. Furthermore, a risk-based regulatory approach is recommended, including sandboxing and controlled deployments for AI systems, to ensure proportional scrutiny based on potential harm [P3].",
    "gaps": [
     {
-     "type": "legislative gap",
-     "summary": "While regulatory sandboxes are supported and enabled by law for testing innovative technologies including AI, there is no explicit legal requirement or detailed regulatory framework mandating or guiding the testing of autonomous AI agents in digital twins or sandboxes before deployment on live 5G networks in India [P2, P3, P5]."
+     "type": "implementation",
+     "summary": "While regulatory sandboxes are authorized and recommended, there is no clear mechanism or mandatory requirement for testing AI systems specifically in sandboxes or digital twins before deployment on live 5G networks, leaving practical enforcement and operationalization unclear [P1] [P2] [P3] [P5]."
+    },
+    {
+     "type": "evaluation",
+     "summary": "The national documents do not specify detailed procedures or standards for evaluating or certifying AI systems through sandbox or digital twin testing prior to live deployment, which is critical for ensuring safe autonomous operation in self-healing 5G networks [P1] [P2] [P3] [P5]."
     }
    ],
    "conflicts": "",
@@ -1328,7 +1336,7 @@
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 125,
-     "what_it_does": "The EU Artificial Intelligence Act establishes AI regulatory sandboxes for controlled experimentation and testing of AI systems, including supervised real-world testing."
+     "what_it_does": "The EU AI Act establishes regulatory sandboxes for controlled experimentation and testing of AI systems, including supervised real-world testing."
     }
    ],
    "regional": [
@@ -1337,12 +1345,12 @@
      "jurisdiction": "Sri Lanka",
      "title": "Sri Lanka Personal Data Protection Act, No. 9 of 2022",
      "page": 32,
-     "what_it_does": "Sri Lanka's Personal Data Protection Act empowers the authority to conduct inquiries and issue directives related to compliance, which may include oversight of AI processing activities."
+     "what_it_does": "Sri Lanka's data protection law empowers authorities to conduct inquiries and issue directives related to compliance, implying regulatory oversight but does not explicitly address AI sandbox testing."
     }
    ],
-   "recommendation": "Indian regulations should explicitly require or support the use of regulatory sandboxes and digital twins for testing autonomous AI agents before live deployment in 5G networks, with clear guidelines on scope, duration, and risk management. This would align with international standards and best practices, ensuring safe and robust AI operation in telecom networks.",
+   "recommendation": "India should clarify regulatory requirements for mandatory testing of AI systems in regulatory sandboxes or digital twins before live deployment in telecom networks, including detailed evaluation and certification procedures. This would ensure safe, reliable autonomous AI operation in 5G self-healing networks while fostering innovation under controlled conditions.",
    "confidence": "high",
-   "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+   "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
   },
   {
    "id": "auditability",
@@ -1568,47 +1576,47 @@
      "excerpt": "h has created or which is likely to create an irreversible and continuous impact on the rights and freedoms of the data subject under any written law. (2) The provisions of subsection (1) shall not apply where a decision of a controller, based on automated processing is– (a) authorized by any written law, which a controller is subject to; (b) authorized in a manner determined by the Authority; (c) based on the consen"
     }
    },
-   "national_position": "Indian national documents emphasize transparency and explainability in AI systems, recommending meaningful information disclosure appropriate to context and consistent with the state of the art [P1]. They acknowledge challenges in accountability for AI decisions and the difficulty in providing remedial accountability due to the autonomous nature of AI systems [P2]. The TRAI recommendations note overlapping definitions of Explainable AI and Responsible AI but do not mandate specific record-keeping or logging obligations [P5].",
+   "national_position": "Indian national documents emphasize transparency and explainability for AI systems, recommending meaningful information disclosure appropriate to context and state of the art, but do not specify explicit record-keeping or logging obligations for automated decisions [P1]. They acknowledge challenges in accountability and explainability of AI decisions, noting the difficulty in assigning responsibility and the evolving nature of AI systems [P2] [P6]. There is no clear legal mandate on logging or explanation of automated decisions in telecom AI systems.",
    "gaps": [
     {
-     "type": "legislative gap",
-     "summary": "Indian national policies recommend transparency and explainability but do not specify concrete record-keeping, logging, or explanation obligations for automated AI decisions in telecom networks, leaving a gap in enforceable requirements for documenting AI decision processes [P1, P2, P5]."
+     "type": "auditability",
+     "summary": "Indian national policies recommend transparency and explainability but do not mandate systematic logging or record-keeping of automated AI decisions in telecom networks, leaving unclear requirements for audit trails or explanation of AI decision processes [P1] [P2] [P6]."
     },
     {
-     "type": "unclear responsibility",
-     "summary": "There is an unclear allocation of responsibility and accountability for AI decisions, as existing legal systems assume human agents, complicating enforcement and remedial actions for AI-driven automated decisions [P2]."
+     "type": "responsibility",
+     "summary": "There is ambiguity in Indian policy about who is accountable for AI decisions and their explanations, as existing legal systems assume human agents and do not clearly allocate responsibility for AI automated decisions [P2]."
     }
    ],
    "conflicts": "",
-   "severity": "high",
+   "severity": "medium",
    "global_examples": [
-    {
-     "passage": "P15",
-     "jurisdiction": "European Union",
-     "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
-     "page": 70,
-     "what_it_does": "The EU Artificial Intelligence Act mandates maintaining technical documentation and automatic event logging for high-risk AI systems throughout their lifecycle to facilitate compliance assessment and post-market monitoring."
-    },
     {
      "passage": "P11",
      "jurisdiction": "United States",
      "title": "NIST AI Risk Management Framework (AI RMF 1.0), NIST AI 100-1 (2023)",
      "page": 21,
-     "what_it_does": "The NIST AI Risk Management Framework promotes transparency and accountability by encouraging meaningful documentation and explainability of AI systems’ operations and outputs."
+     "what_it_does": "NIST AI Risk Management Framework emphasizes transparency, accountability, and explainability, recommending meaningful information access tailored to AI lifecycle stages and roles."
+    },
+    {
+     "passage": "P15",
+     "jurisdiction": "European Union",
+     "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
+     "page": 70,
+     "what_it_does": "EU Artificial Intelligence Act requires high-risk AI systems to maintain up-to-date technical documentation and automatic event logging throughout the system's lifetime."
     },
     {
      "passage": "P13",
      "jurisdiction": "Singapore",
      "title": "Singapore Model Artificial Intelligence Governance Framework, Second Edition (2020)",
      "page": 44,
-     "what_it_does": "Singapore's AI Governance Framework recommends explaining AI model functioning and decision-making processes to build trust and understanding."
+     "what_it_does": "Singapore AI Governance Framework recommends explaining AI model functioning and decision-making processes to build trust and understanding."
     },
     {
      "passage": "P14",
      "jurisdiction": "Singapore",
      "title": "Singapore Model Artificial Intelligence Governance Framework, Second Edition (2020)",
      "page": 53,
-     "what_it_does": "Singapore encourages organizations to develop policies on explanations to provide individuals with consistent information about AI decisions, including reasons and impacts."
+     "what_it_does": "Singapore Framework encourages organizations to develop policies on explanations to provide consistent communication about AI decisions and their impacts."
     }
    ],
    "regional": [
@@ -1617,12 +1625,12 @@
      "jurisdiction": "Sri Lanka",
      "title": "Sri Lanka Personal Data Protection Act, No. 9 of 2022",
      "page": 12,
-     "what_it_does": "Sri Lanka’s Personal Data Protection Act includes provisions on automated decision-making, requiring controllers to comply with authority-specified measures to safeguard data subject rights."
+     "what_it_does": "Sri Lanka's Personal Data Protection Act includes provisions on automated decision-making, requiring controllers to comply with measures safeguarding data subject rights, implying some regulation of automated decisions."
     }
    ],
-   "recommendation": "India should establish clear regulatory requirements for record-keeping, logging, and explanation obligations specific to AI-driven automated decisions in telecom networks, ensuring transparency and accountability. Such rules should clarify responsibilities for maintaining decision logs, providing meaningful explanations to stakeholders, and enabling auditability consistent with international best practices.",
+   "recommendation": "Indian telecom AI regulations should clarify mandatory logging and record-keeping requirements for automated decisions, including detailed audit trails and explanations accessible to relevant stakeholders. They should also define clear accountability frameworks for AI decision-making to ensure responsible deployment and oversight.",
    "confidence": "high",
-   "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+   "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
   },
   {
    "id": "standards-adoption",
@@ -1848,11 +1856,11 @@
      "excerpt": "training, based on international best practices, for controllers and processors to ensure the effective implementation of the provisions of this Act; (e) issue directives to ensure effective implementation of data protection management programmes by the controllers; (f) promote transparency and self-regulation among controllers and processors; (g) ensure domestic compliance of data protection obligations under intern"
     }
    },
-   "national_position": "The Telecommunications Act, 2023 empowers the Central Government to issue notifications and rules regarding standards applicable to telecommunication equipment and services, including those related to manufacture, import, distribution, and use by authorized entities, especially in the interest of national security and public safety [P1, P3, P4]. However, the Act does not explicitly reference or require the adoption of international standards specifically for machine learning pipelines, sandboxes, or digital twin networks in telecom. The TRAI Recommendations acknowledge the evolving nature of AI/ML in telecom and suggest that industry or academic bodies should define standards rather than regulatory interventions at this stage [P6].",
+   "national_position": "The Telecommunications Act, 2023 empowers the Central Government to notify standards applicable to telecommunication equipment and services, and to adopt standards to be followed by authorized entities or assignees, including measures for cybersecurity of telecommunication networks and services [P1] [P3] [P4]. However, the Act does not explicitly reference or require adherence to international standards specifically for machine learning pipelines, ML sandboxes, or digital twin networks in telecom networks. The TRAI Recommendations acknowledge the evolving nature of AI/ML in telecom and suggest that industry or academic bodies should define standards rather than regulatory interventions, indicating a preference for voluntary or market-driven standard setting rather than mandatory adoption of international standards [P6].",
    "gaps": [
     {
-     "type": "legislative gap",
-     "summary": "The national telecom rules do not explicitly reference or mandate international standards for machine learning in networks, such as ML pipelines, ML sandboxes, or digital twin networks, despite the presence of provisions empowering the government to notify standards generally [P1, P3, P4]."
+     "type": "legal coverage",
+     "summary": "The national telecom law and policy documents do not explicitly reference or mandate the adoption of international standards for machine learning in networks, such as ML pipelines, ML sandboxes, or digital twin networks, leaving a gap in legal coverage for these AI-specific technical standards [P1] [P3] [P4] [P6]."
     }
    ],
    "conflicts": "",
@@ -1864,12 +1872,12 @@
      "jurisdiction": "Bangladesh",
      "title": "Bangladesh Telecommunication Act, 2001 (authentic English text)",
      "page": 50,
-     "what_it_does": "Bangladesh Telecommunication Act allows the Commission to determine and publish standards, criteria, and methods for verifying compliance for different classes of apparatus."
+     "what_it_does": "Bangladesh Telecommunication Act allows the Commission to determine and publish standards for different classes of apparatus with public consultation."
     }
    ],
-   "recommendation": "National telecom regulations should explicitly reference and require adherence to international standards such as ITU-T Y.3172, Y.3181, and Y.3090 for machine learning pipelines, sandboxes, and digital twin networks to ensure interoperability, security, and reliability of AI-operated telecom networks. This clarity would guide operators and regulators in implementing self-healing AI agents in 5G networks effectively.",
+   "recommendation": "National telecom regulations should explicitly reference and require adherence to relevant international standards for machine learning in networks, such as ITU-T Y.3172 for ML pipelines, Y.3181 for ML sandboxes, and Y.3090 for digital twin networks. This would provide clear legal backing for the deployment and operation of AI-driven self-healing networks and ensure interoperability and security aligned with global best practices.",
    "confidence": "high",
-   "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+   "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
   },
   {
    "id": "cross-border",
@@ -2059,33 +2067,29 @@
      "excerpt": "his Act, and such other prescribed criteria relating to the processing of personal data, in a third country for the purpose of cross border data flow. (b) Any adequacy decision made by the Minister under this subsection shall– (i) be subject to periodic monitoring of the developments in a third country that may affect such decisions and the Minister may review such decision at least every two years; and (ii) remain i"
     }
    },
-   "national_position": "The Telecommunications Act, 2023, governs telecommunication services and networks within India and extends to offences committed outside India if they affect Indian networks [P2, P3]. The Act empowers the Central Government to take control of telecommunication networks and services, including suspension or removal of equipment from specified countries, and to provide rules for cybersecurity and protection of critical telecommunication infrastructure [P1, P4, P5]. However, there is no explicit provision addressing coordination of interference, outages, or network management across national borders or between regulators of neighbouring countries.",
+   "national_position": "The Telecommunications Act, 2023, empowers the Central Government to take control and management of telecommunication networks and services, including suspension or prohibition of equipment or services from notified countries or persons, and to provide rules for cybersecurity and protection of critical telecommunication infrastructure [P1] [P4]. The Act extends to offences committed outside India if they involve telecommunication services or equipment located in India [P2] [P3]. However, the Act does not explicitly address coordination mechanisms across national borders or between regulators of neighbouring countries for interference, outages, or network management.",
    "gaps": [
     {
-     "type": "legislative gap",
-     "summary": "The national legislation does not explicitly address mechanisms or frameworks for cross-border coordination of interference management, outage resolution, or network management between India and neighbouring countries, leaving a gap in handling interference sources originating outside national borders [P1, P2, P3]."
-    },
-    {
-     "type": "coordination problem",
-     "summary": "There is no clear regulatory framework or mandate for coordination between Indian regulators and those of neighbouring countries to manage cross-border interference or network disruptions, which is critical for autonomous AI agents troubleshooting near borders [P1, P2, P3]."
+     "type": "coordination",
+     "summary": "The national law provides broad powers for control and cybersecurity but lacks explicit provisions or mechanisms for coordination across national borders or between regulators of neighbouring countries to manage interference, outages, or network issues that may originate outside India [P1] [P2] [P3] [P4]."
     }
    ],
    "conflicts": "",
-   "severity": "high",
+   "severity": "medium",
    "global_examples": [
     {
      "passage": "P11",
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 23,
-     "what_it_does": "The EU AI Act exempts cooperation with foreign partners and international organizations under international agreements, facilitating cross-border law enforcement and judicial cooperation with safeguards for fundamental rights."
+     "what_it_does": "The EU AI Act exempts third-country public authorities and international organizations acting under international cooperation agreements, implying mechanisms for cross-border cooperation in law enforcement and judicial matters."
     },
     {
      "passage": "P12",
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 114,
-     "what_it_does": "The EU framework promotes mutual recognition of conformity assessment results and encourages international agreements to facilitate cross-border regulatory cooperation."
+     "what_it_does": "The EU regulation facilitates mutual recognition of conformity assessment results across borders, promoting international cooperation and standardization."
     }
    ],
    "regional": [
@@ -2094,19 +2098,26 @@
      "jurisdiction": "Bangladesh",
      "title": "Bangladesh Telecommunication Act, 2001 (authentic English text)",
      "page": 51,
-     "what_it_does": "Bangladesh's Telecommunications Act empowers the regulator to search for harmful interference and order cessation or repair of interfering apparatus."
+     "what_it_does": "Bangladesh Telecommunication Act authorizes the Commission to search for harmful interference and order cessation or repair of interfering apparatus."
     },
     {
      "passage": "P14",
      "jurisdiction": "Nepal",
      "title": "Nepal Telecommunications Act, 2053 (1997), up to date English text",
      "page": 15,
-     "what_it_does": "Nepal's Telecommunications Act allows the authority to impose fines and stop services causing harm or harassment, implying regulatory control over interference."
+     "what_it_does": "Nepal Telecommunications Act allows the Authority to impose fines and stop telecommunications services causing harm or harassment, with procedural safeguards."
+    },
+    {
+     "passage": "P15",
+     "jurisdiction": "Sri Lanka",
+     "title": "Sri Lanka Personal Data Protection Act, No. 9 of 2022",
+     "page": 21,
+     "what_it_does": "Sri Lanka Personal Data Protection Act includes provisions for adequacy decisions and monitoring for cross-border data flow, indicating regulatory cooperation on data protection."
     }
    ],
-   "recommendation": "The Indian regulatory framework should explicitly establish protocols and cooperative mechanisms for cross-border coordination of interference management, outages, and network operations with neighbouring countries' regulators. Standards or rules should clarify responsibilities and processes for joint investigation and resolution of interference sources originating outside national borders to support autonomous AI network management agents.",
+   "recommendation": "The national regulation should clarify and establish formal coordination mechanisms between Indian regulators and neighbouring countries' authorities to manage cross-border interference and outages effectively. It should also define roles and processes for joint investigation and resolution of network issues that originate beyond national borders.",
    "confidence": "high",
-   "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+   "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
   },
   {
    "id": "ai-security",
@@ -2332,15 +2343,23 @@
      "excerpt": "Page 26 of 82 BTRC-TelecomLaw2001.doc - 26 - 26 (a) to regulate the establishment, operation and maintenance of telecom munication services in Bangladesh; (b) to protect the interests of the local consumers in respect of the charges imposed on them, and their access to telecommunication services, and the quality and variety of such services; (c) to encourage research and de velopment activities in telecommunication, "
     }
    },
-   "national_position": "The Telecommunications Act, 2023 empowers the Central Government to provide rules for cybersecurity measures to protect telecommunication networks and services, including telecommunication security, intrusion prevention, and encryption [P2, P3]. TRAI recommendations emphasize that AI systems in telecom should be robust, secure, and safe throughout their lifecycle, with systematic risk management addressing privacy, digital security, safety, and bias [P4, P5, P6]. However, specific obligations for AI systems controlling network infrastructure, including protection against manipulation of their data or instructions, are not explicitly detailed in the national documents.",
+   "national_position": "The Telecommunications Act, 2023 empowers the Central Government to enact rules for cybersecurity measures to protect telecommunication networks and services, including telecommunication security and prevention of intrusion [P2] [P3]. TRAI recommendations emphasize that AI systems should be robust, secure, and safe throughout their lifecycle, applying systematic risk management to address digital security risks, and ensuring accountability for proper functioning and respect of principles [P4] [P5] [P6]. Procurement rules require sourcing equipment and services only from trusted sources, and the government may suspend or remove equipment or services from notified persons or countries [P2].",
    "gaps": [
     {
-     "type": "legislative gap",
-     "summary": "While the national law mandates cybersecurity measures for telecommunication networks generally, it lacks explicit provisions addressing cybersecurity obligations specifically for AI systems controlling network infrastructure, including safeguards against manipulation of AI data or instructions [P2, P3, P4, P5, P6]."
+     "type": "legal coverage",
+     "summary": "While the Telecommunications Act provides broad authority for cybersecurity rules, it does not explicitly specify cybersecurity obligations tailored to AI systems controlling network infrastructure, nor detailed protections against manipulation of AI data or instructions [P2] [P3]."
     },
     {
-     "type": "unclear responsibility",
-     "summary": "The national framework does not clearly assign responsibility or accountability for ensuring cybersecurity of AI systems that autonomously control network operations, beyond general AI accountability principles [P1, P6]."
+     "type": "data",
+     "summary": "TRAI recommendations call for traceability and risk management but do not clarify specific data protection requirements for AI systems' telemetry and command data to prevent manipulation or tampering [P4] [P5]."
+    },
+    {
+     "type": "evaluation",
+     "summary": "There is no explicit national provision requiring testing, certification, or continuous evaluation of AI systems controlling network infrastructure for cybersecurity robustness before or after deployment [P2] [P3] [P4]."
+    },
+    {
+     "type": "auditability",
+     "summary": "Although traceability is recommended, there is no clear legal obligation to log or explain automated decisions or actions taken by AI systems in network control to detect or investigate manipulation attempts [P5]."
     }
    ],
    "conflicts": "",
@@ -2351,28 +2370,28 @@
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 361,
-     "what_it_does": "The EU AI Act requires providers of high-risk AI systems to implement adequate cybersecurity measures to protect data security and confidentiality, including deletion of data when no longer needed."
+     "what_it_does": "EU AI Act mandates adequate and effective cybersecurity measures to protect AI system data and requires deletion of data when no longer needed."
     },
     {
      "passage": "P12",
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 74,
-     "what_it_does": "The EU AI Act mandates suitable security controls to protect AI systems from adversarial attacks and vulnerabilities in the underlying ICT infrastructure."
-    },
-    {
-     "passage": "P13",
-     "jurisdiction": "Singapore",
-     "title": "Singapore Model Artificial Intelligence Governance Framework, Second Edition (2020)",
-     "page": 66,
-     "what_it_does": "Singapore's AI Governance Framework requires AI systems to be safe and secure, not vulnerable to tampering or compromising training data."
+     "what_it_does": "EU AI Act requires providers of high-risk AI systems to implement security controls to prevent adversarial attacks and vulnerabilities in AI and ICT infrastructure."
     },
     {
      "passage": "P14",
      "jurisdiction": "United States",
      "title": "NIST AI Risk Management Framework (AI RMF 1.0), NIST AI 100-1 (2023)",
      "page": 20,
-     "what_it_does": "NIST AI Risk Management Framework defines security for AI systems as maintaining confidentiality, integrity, and availability through protection mechanisms preventing unauthorized access and use."
+     "what_it_does": "NIST AI RMF defines security for AI systems as maintaining confidentiality, integrity, and availability, including protection against adversarial attacks and data poisoning."
+    },
+    {
+     "passage": "P13",
+     "jurisdiction": "Singapore",
+     "title": "Singapore Model Artificial Intelligence Governance Framework, Second Edition (2020)",
+     "page": 66,
+     "what_it_does": "Singapore AI Governance Framework requires AI systems to be safe and secure, not vulnerable to tampering or compromising training data."
     }
    ],
    "regional": [
@@ -2381,12 +2400,12 @@
      "jurisdiction": "Sri Lanka",
      "title": "Sri Lanka Personal Data Protection Act, No. 9 of 2022",
      "page": 30,
-     "what_it_does": "Sri Lanka's Personal Data Protection Act empowers the authority to monitor data processing operations and issue directives to ensure compliance, which may include cybersecurity aspects."
+     "what_it_does": "Sri Lanka Personal Data Protection Act empowers an authority to monitor data processing and issue directives to ensure compliance."
     }
    ],
-   "recommendation": "National regulations should explicitly define cybersecurity obligations for AI systems controlling network infrastructure, including requirements to protect against manipulation of AI data and instructions. Clear assignment of responsibility and accountability for securing AI-driven network operations should be established, aligned with international best practices and standards.",
+   "recommendation": "Indian regulations should explicitly define cybersecurity obligations for AI systems controlling network infrastructure, including protections against manipulation of data and instructions, requirements for logging and auditability, and mandatory evaluation and certification processes. Clear rules on data integrity, access controls, and incident response specific to AI-driven network control would enhance security and accountability.",
    "confidence": "high",
-   "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+   "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
   },
   {
    "id": "energy",
@@ -2600,11 +2619,15 @@
      "excerpt": "anybody due to such offence, the Authority may cause to realize the amount of such damage or loss or also the compensation thereof from the offender. (2) If any person operates the Telecommunications Service without obtaining the Licence pursuant to this Act or ope rates the Telecommunications Service without complying with the terms and conditions mentioned on the Licence, the Authority may award a fine up to Five L"
     }
    },
-   "national_position": "The TRAI Recommendations acknowledge that AI can be used to optimize network performance and improve energy efficiency, thereby reducing carbon emissions in telecom networks [P1]. However, there are no explicit obligations or incentives detailed for energy efficiency or sustainability specifically for AI systems managing telecom networks. The focus is more on collaboration and infrastructure support for AI adoption rather than regulatory mandates on sustainability [P2, P5].",
+   "national_position": "The TRAI Recommendations acknowledge that AI can be used to optimize network performance and improve energy efficiency, thereby reducing carbon emissions in telecom networks [P1]. However, there is no explicit mention of obligations or incentives for energy efficiency or sustainability specifically for AI systems managing telecom networks. The focus is on collaboration and infrastructure development for AI adoption rather than regulatory mandates on sustainability [P2] [P5].",
    "gaps": [
     {
-     "type": "legislative gap",
-     "summary": "While TRAI recognizes AI's potential to reduce carbon emissions and improve energy efficiency in telecom, there are no clear legal obligations or incentives for energy efficiency and sustainability of telecom networks or the AI systems managing them [P1]."
+     "type": "legal coverage",
+     "summary": "While TRAI recognizes AI's potential to improve energy efficiency and reduce carbon emissions, there are no clear legal obligations or incentives for energy efficiency and sustainability of telecommunication networks or the AI systems managing them in the national policy documents [P1] [P2] [P5]."
+    },
+    {
+     "type": "implementation",
+     "summary": "Although AI's role in energy optimization is acknowledged, there is no mechanism or policy framework described to implement energy-saving modes or sustainability measures in AI-managed networks [P1]."
     }
    ],
    "conflicts": "",
@@ -2615,21 +2638,21 @@
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 6,
-     "what_it_does": "The EU AI Act highlights AI's role in resource and energy efficiency and environmental benefits, promoting socially and environmentally beneficial outcomes."
+     "what_it_does": "The EU Artificial Intelligence Act highlights AI's role in improving resource and energy efficiency and supports environmentally beneficial outcomes."
     },
     {
      "passage": "P12",
      "jurisdiction": "European Union",
      "title": "EU Artificial Intelligence Act: European Parliament text adopted 13 March 2024 (P9_TA(2024)0138)",
      "page": 262,
-     "what_it_does": "The EU AI Act mandates standardisation requests to improve AI systems' resource performance, including reducing energy consumption during their lifecycle."
+     "what_it_does": "The EU Act mandates standardisation requests to improve AI systems' resource performance, including reducing energy consumption during their lifecycle."
     },
     {
      "passage": "P15",
      "jurisdiction": "United States",
      "title": "NIST AI Risk Management Framework (AI RMF 1.0), NIST AI 100-1 (2023)",
      "page": 7,
-     "what_it_does": "The NIST AI Risk Management Framework emphasizes social responsibility and sustainability, including environmental aspects, in AI deployment."
+     "what_it_does": "The NIST AI Risk Management Framework defines sustainability as a key aspect of responsible AI, emphasizing environmental and social impacts."
     }
    ],
    "regional": [
@@ -2639,11 +2662,18 @@
      "title": "Bangladesh Telecommunication Act, 2001 (authentic English text)",
      "page": 25,
      "what_it_does": "Bangladesh Telecommunication Act encourages development of telecom systems that enhance social and economic welfare but does not explicitly address energy efficiency or AI sustainability."
+    },
+    {
+     "passage": "P17",
+     "jurisdiction": "Nepal",
+     "title": "Nepal Telecommunications Act, 2053 (1997), up to date English text",
+     "page": 15,
+     "what_it_does": "Nepal Telecommunications Act focuses on licensing and penalties but does not mention energy efficiency or sustainability obligations."
     }
    ],
-   "recommendation": "India should clarify regulatory obligations or incentives for energy efficiency and sustainability specifically targeting telecom networks and the AI systems managing them. Standards should include requirements for AI lifecycle energy consumption and promote green telecom practices.",
+   "recommendation": "National regulations should explicitly establish obligations or incentives for energy efficiency and sustainability in telecommunication networks and the AI systems managing them. This includes defining standards for energy-saving modes and lifecycle resource optimization for AI agents in network operations.",
    "confidence": "high",
-   "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+   "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
   }
  ],
  "documents": [
@@ -2802,12 +2832,16 @@
   }
  ],
  "gap_types": [
-  "unclear responsibility",
-  "legislative gap",
-  "standards gap",
-  "technology gap",
-  "coordination problem",
-  "conflicting objectives"
+  "responsibility",
+  "legal coverage",
+  "standards",
+  "implementation",
+  "coordination",
+  "conflicting objectives",
+  "data",
+  "evaluation",
+  "auditability",
+  "cross-border"
  ],
- "method": "language model (openai:gpt-4.1-mini-2025-04-14)"
+ "method": "language model (openai:gpt-4.1-mini-2025-04-14 (cached))"
 }

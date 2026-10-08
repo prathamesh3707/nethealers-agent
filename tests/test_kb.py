@@ -102,3 +102,9 @@ def test_remote_knowledge_base_reads_both_reply_shapes_and_falls_back_when_down(
     monkeypatch.setattr(rs, "_post", down)
     assert rs.search_text("q", lambda q: None, 3, None, None)[0].id == "local:1:0"
     assert rs.last_error == "unreachable"
+
+
+def test_grouped_gap_citations_are_checked_one_by_one():
+    by_num = {"P1": ("NATIONAL", hit("a:1:0", "telecom-act-2023")), "P3": ("NATIONAL", hit("b:1:0", "dpdp-act-2023"))}
+    out = _validated({"national_position": "Covered in part [P1, P3, P9].", "gaps": []}, by_num, {})
+    assert out["national_position"] == "Covered in part [P1] [P3]."

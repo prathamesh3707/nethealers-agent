@@ -28,8 +28,22 @@ TOPICS = ROOT / "config" / "gap_topics.yaml"
 OUT_JSON = ROOT / "docs" / "gap_analysis.json"
 OUT_MD = ROOT / "docs" / "gap_analysis.md"
 
-GAP_TYPES = ["unclear responsibility", "legislative gap", "standards gap", "technology gap", "coordination problem",
-             "conflicting objectives"]
+# Ten kinds of gap, each with what it means; the model must pick from these.
+GAP_KINDS = {
+    "responsibility": "it is unclear who is accountable or who must act",
+    "legal coverage": "the law does not address the question",
+    "standards": "no technical standard covers it, or standards conflict",
+    "implementation": "principles exist, but no mechanism puts them into practice",
+    "coordination": "several bodies are involved with no way set out to coordinate them",
+    "conflicting objectives": "two goals pull against each other with no rule for choosing",
+    "data": "rules for the data the AI needs are unclear",
+    "evaluation": "no way is set out to test or certify the AI before or after deployment",
+    "auditability": "no requirement to log or explain automated decisions",
+    "cross-border": "rules differ across borders or between neighbouring networks",
+}
+GAP_TYPES = list(GAP_KINDS)
+_OLD_LABELS = {"unclear responsibility": "responsibility", "legislative gap": "legal coverage",
+               "standards gap": "standards", "technology gap": "implementation", "coordination problem": "coordination"}
 NATIONAL_COVERED = 0.55  # similarity above which a national passage plausibly addresses the question
 
 SYSTEM = f"""You are a telecom policy analyst preparing a gap analysis for the ITU AI for Good Build-a-thon.
@@ -42,11 +56,12 @@ Rules:
 - Use only the passages. Every statement of what a document says must cite passage numbers like [P3].
 - Read the national passages carefully: a provision may answer the question in different words (for example
   "routed on priority during public emergency" answers a question about emergency priority). Credit it.
-- Call something a "legislative gap" only if the national passages are on the topic and still leave the
+- Call something a "legal coverage" gap only if the national passages are on the topic and still leave the
   question unanswered. If the passages are simply off-topic, write "not found in the retrieved passages",
   use confidence "low", and do not claim the law is silent.
 - Do not invent laws, articles or countries. If no global or regional passage is relevant, return an empty list.
-- Gap types must be from: {", ".join(GAP_TYPES)}.
+- Gap types must be from this list (type: meaning):
+{chr(10).join(f"  {k}: {v}" for k, v in GAP_KINDS.items())}
 - Focus on the domain (AI operating telecom networks), not on general recommendations to one country.
 
 Reply with JSON only:
@@ -146,11 +161,20 @@ def analyse(topic: dict, lib: Library, llm: LLM | None) -> dict:
     return {**base, **_retrieval_only(ev, best_national, by_num, meta), "method": "retrieval only"}
 
 
+def split_groups(text: str) -> str:
+    """"[P2, P3]" or "(P2, P3)" -> "[P2] [P3]", so every citation is checked on its own."""
+    import re
+
+    return re.sub(r"[\[(]\s*(P\d+(?:\s*[,;]\s*P\d+)+)\s*[\])]",
+                  lambda m: " ".join(f"[{x}]" for x in re.findall(r"P\d+", m.group(1))), str(text or ""))
+
+
 def _valid_refs(text: str, by_num: dict) -> str:
     """Remove citations to passages the model was not given."""
     import re
 
-    return re.sub(r"\[(P\d+)\]", lambda m: m.group(0) if m.group(1) in by_num else "", text or "").strip()
+    text = re.sub(r"\[(P\d+)\]", lambda m: m.group(0) if m.group(1) in by_num else "", split_groups(text))
+    return re.sub(r"\s+([.,;:])", r"\1", re.sub(r"\s{2,}", " ", text)).strip()
 
 
 def _validated(data: dict, by_num: dict, meta: dict) -> dict:
@@ -165,7 +189,12 @@ def _validated(data: dict, by_num: dict, meta: dict) -> dict:
                         "page": h.page, "what_it_does": _valid_refs(str(it.get("what_it_does", "")), by_num)})
         return out
 
-    gaps = [{"type": g.get("type") if g.get("type") in GAP_TYPES else "unclear responsibility",
+    def kind(t) -> str:
+        t = str(t or "").strip().lower()
+        t = _OLD_LABELS.get(t, t)
+        return t if t in GAP_TYPES else "responsibility"
+
+    gaps = [{"type": kind(g.get("type")),
              "summary": _valid_refs(str(g.get("summary", "")), by_num)} for g in data.get("gaps", []) if g.get("summary")]
     sev = str(data.get("severity", "medium")).lower()
     conf = str(data.get("confidence", "medium")).lower()
@@ -188,7 +217,7 @@ def _retrieval_only(ev: Evidence, best_national: float, by_num: dict, meta: dict
         "national_position": ("The closest national passages may address this; a person should confirm. "
                               if covered else "No national passage closely addresses this question. ")
                              + " ".join(f"[{num_of[h.id]}]" for h in ev.national[:3]),
-        "gaps": [] if covered else [{"type": "legislative gap",
+        "gaps": [] if covered else [{"type": "legal coverage",
                                      "summary": "The host-country documents in the knowledge base do not clearly cover "
                                                 "this question (best match "
                                                 f"{best_national:.2f})."}],
