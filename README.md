@@ -2,19 +2,6 @@
 
 Simulation project for the ITU AI for Good Build-a-thon 5.0. An agent watches a 5G street, spots phones whose signal dropped, works out why, rehearses fixes on a virtual copy of the street (the digital twin), applies the safest one, checks the result and undoes it if it fell short.
 
-## Status
-
-| Step | What | State |
-|---|---|---|
-| 1 | Signal world: 3D street, signal maths, problems, fixes, twin | Done |
-| 2 | Dataset and diagnosis model (with LWM) | Done |
-| 3a | Agent core: monitor, twin rehearsal, rule-checker, act, verify, undo, withdraw | Done |
-| 3b | Six test scenarios, five methods, evaluation report | Done |
-| 3c | Language-model roles, document library, decision log in Postgres | Done (live model test needs a key) |
-| 3d | Backend API for the game (sessions, controls, live WebSocket) | Done |
-| 4 | 3D game with live agent panel (`web/`) | Done |
-| 5 | Knowledge base (14 documents), gap analysis, policy adviser you can ask, ITU alignment, who-knew-what view, incident reports, Sandbox adapter | Done |
-
 ## Setup
 
 Needs [uv](https://docs.astral.sh/uv/). Python 3.12 is installed automatically.
