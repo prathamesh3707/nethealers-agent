@@ -4,14 +4,58 @@
     {
       "name": "backend",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "python", "scripts/serve.py"],
+      "runtimeArgs": [
+        "run",
+        "python",
+        "scripts/serve.py"
+      ],
       "port": 8010
     },
     {
       "name": "game",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "web", "run", "dev", "--", "--port", "5173", "--strictPort"],
+      "runtimeArgs": [
+        "--prefix",
+        "web",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
       "port": 5173
+    },
+    {
+      "name": "klare-b2c-be",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd \"/Users/apple/Desktop/'/klare-b2c-be\" && exec .venv/bin/uvicorn app.app:app --reload --reload-dir app --host 0.0.0.0 --port 8001"
+      ],
+      "port": 8001,
+      "url": "http://localhost:8001"
+    },
+    {
+      "name": "klare-b2c-fe",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/apple/Desktop/'/klare-b2c-fe",
+        "run",
+        "dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "lms-ai-service",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd \"/Users/apple/Desktop/'/lms-ai-service\" && PORT=8002 exec .venv/bin/uvicorn app.app:app --reload --reload-dir app --host 0.0.0.0 --port 8002"
+      ],
+      "port": 8002,
+      "url": "http://localhost:8002"
     }
   ]
 }
